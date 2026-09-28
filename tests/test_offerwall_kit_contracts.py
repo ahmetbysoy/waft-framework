@@ -26,6 +26,7 @@ for extra in (ROOT, KIT, ROOT / "qa-kit"):
         sys.path.insert(0, str(extra))
 
 import run_offerwall as kit  # noqa: E402
+import selector_resolver as resolver  # noqa: E402
 from waft import Config  # noqa: E402
 from waft.models import TargetRow  # noqa: E402
 from waft.utils import mask_secret  # noqa: E402
@@ -202,3 +203,57 @@ def test_min_driver_builds_valid_config() -> None:
     assert config.captcha_action == "skip" and config.stealth is True
     assert config.trace_mode == "on-failure" and config.artifacts_dir == args.artifacts
     assert config.contexts == 10 and config.concurrency == 5
+
+
+# --------------------------------------------------------------------------------------
+# 8. resolver canonicalisation: specificity must survive (measured wrong-element bug)
+# --------------------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    ("canonical", "candidate", "expected"),
+    [
+        # canonical is already specific -> untouched
+        ("#register-email", "input[name='email']", "#register-email"),
+        # canonical degenerated to a bare tag, candidate keeps the specificity -> candidate wins
+        ("iframe", "iframe[src*='recaptcha']", "iframe[src*='recaptcha']"),
+        ("button", "button[data-testid='register-submit']", "button[data-testid='register-submit']"),
+        # candidate is XPath: nothing WAFT-consumable survives -> stay bare (caller rejects it)
+        ("input", "(//input[@type='password'])[2]", "input"),
+        ("iframe", "//iframe[@title='captcha']", "iframe"),
+        # both bare -> nothing to prefer
+        ("button", "button", "button"),
+    ],
+)
+def test_prefer_specific_keeps_specificity(canonical: str, candidate: str, expected: str) -> None:
+    assert resolver.prefer_specific(canonical, candidate) == expected
+
+
+def test_bare_tag_and_xpath_detection() -> None:
+    assert resolver.BARE_TAG_RE.match("iframe") and resolver.BARE_TAG_RE.match("button")
+    assert not resolver.BARE_TAG_RE.match("iframe[src*='recaptcha']")
+    assert resolver.X_PATH_RE.match("(//input[@type='password'])[2]")
+    assert resolver.X_PATH_RE.match("//iframe[@title='captcha']")
+    assert not resolver.X_PATH_RE.match("input[name='email']")
+
+
+def test_resolver_identity_check_is_wired_in() -> None:
+    """The fix must be *in* probe_chain, not merely available as a helper."""
+    import inspect
+
+    source = inspect.getsource(resolver.probe_chain)
+    assert "MARK_JS" in source and "HAS_MARK_JS" in source and "UNMARK_JS" in source
+    assert "points at a different element" in source
+    assert "prefer_specific" in source
+
+
+def test_user_draft_catalogue_loads_and_maps_kit_keys() -> None:
+    """The pasted catalogue was translated to kit keys without changing the chains."""
+    catalogue = resolver.Catalogue.load(KIT / "selectors_user_draft.json")
+    chains = catalogue.chains_for("127.0.0.1:8090", "127.0.0.1")
+    assert set(chains) == {"email", "password", "password_confirm", "first_name", "last_name", "submit", "captcha"}
+    assert chains["submit"][0] == "button[type='submit']"
+    assert chains["captcha"][0] == "iframe[src*='recaptcha']"
+
+    # the gap this catalogue has on the bundled sandbox: no country/terms/success/error keys
+    kit_chains = resolver.Catalogue.load(KIT / "selectors_offerwall.json").chains_for("127.0.0.1:8090", "127.0.0.1")
+    assert {"country", "terms", "success", "error"} <= set(kit_chains)
+    assert not ({"country", "terms", "success", "error"} & set(chains))

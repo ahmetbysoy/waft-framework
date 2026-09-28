@@ -1,0 +1,58 @@
+{
+  "_comment": [
+    "Kullanıcının gönderdiği selector kataloğu — kitin şemasına (Catalogue.load) uyarlanmış hâli.",
+    "ÖNEMLİ: aday zincirleri BİREBİR korundu; yalnızca anahtar adları kitin beklediği biçime",
+    "çevrildi (submit_button -> submit, captcha_frame -> captcha).",
+    "Bu dosya, kullanıcı kataloğunun gerçek sayfada ne kadarının çözüldüğünü ölçmek için var;",
+    "üretim varsayılanı selectors_offerwall.json'dur.",
+    "Adayların hangisinin kazandığı: selectors_user_draft.report.json"
+  ],
+  "version": 1,
+  "defaults": {
+    "probe_timeout_ms": 10000,
+    "require_visible": true
+  },
+  "hosts": {
+    "127.0.0.1:8090": {
+      "email": [
+        "input[name='email']",
+        "input[type='email']",
+        "input[id*='email' i]",
+        "input[autocomplete='email']"
+      ],
+      "password": [
+        "input[name='password']",
+        "input[type='password']",
+        "input[id*='password' i]"
+      ],
+      "password_confirm": [
+        "input[name='password_confirm']",
+        "input[name='confirm_password']",
+        "input[id*='confirm' i][type='password']"
+      ],
+      "first_name": [
+        "input[name='first_name']",
+        "input[name='fname']",
+        "input[autocomplete='given-name']"
+      ],
+      "last_name": [
+        "input[name='last_name']",
+        "input[name='lname']",
+        "input[autocomplete='family-name']"
+      ],
+      "submit": [
+        "button[type='submit']",
+        "input[type='submit']",
+        "button:has-text('Kayıt Ol')",
+        "button:has-text('Register')",
+        "button:has-text('Sign Up')"
+      ],
+      "captcha": [
+        "iframe[src*='recaptcha']",
+        "iframe[src*='hcaptcha']",
+        "div.g-recaptcha",
+        "div.h-captcha"
+      ]
+    }
+  }
+}

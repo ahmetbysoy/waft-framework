@@ -350,7 +350,85 @@ sistemi kötüye kullanmak. Bu yüzden o adımı üçüncü taraf hedefler için
 sisteminiz veya yazılı izin aldığınız sandbox için `postback_receiver.py --selftest` ile
 başlayan API seviyesi test yolunu birlikte kurabiliriz.
 
-## 11. Bir sonraki adım
+## 11. Selector kataloğu değerlendirmesi (gönderdiğin JSON) — ve çözümleyicide bulunan 2 gerçek bug
+
+Gönderdiğin katalog kitin şemasına çevrildi (aday zincirleri **birebir**, yalnızca anahtar adları:
+`submit_button → submit`, `captcha_frame → captcha`): `selectors_user_draft.json`. Gerçek tarayıcıda
+yoklandı; sonuç: `selectors_user_draft.report.json`.
+
+### 11.1 Sandbox kayıt sayfasında aday aday sonuç
+
+| Alan | Adaylar | Kazanan |
+|---|---|---|
+| email | `input[name='email']` → `input[type='email']` → `input[id*='email' i]` → `input[autocomplete='email']` | **1. aday** → `#register-email` |
+| password | `input[name='password']` → … | **1. aday** → `#register-password` |
+| password_confirm | `input[name='password_confirm']` → … | **1. aday** → `#register-password-confirm` |
+| first_name / last_name | `input[name='first_name']` / `input[name='last_name']` → … | **1. aday** → `#first-name` / `#last-name` |
+| submit | `button[type='submit']` → `input[type='submit']` → `:has-text('Kayıt Ol'/'Register'/'Sign Up')` | **1. aday** → `#register-submit` |
+| captcha | `iframe[src*='recaptcha']` → … | `/register`'da **yok** (beklenen); `/captcha` sayfasında **1. aday** ✔ |
+
+Yani zincirlerin bu sayfada sağlam: ilk aday hepsini karşılıyor, yedekler hiç yük almadı.
+`:has-text(...)` adayların sandbox'ta ölü (buton metni "Hesap oluştur") — ama **geçerli**:
+WAFT `find_submit()` gerçekten `button:has-text("…")` kullanıyor, yani onlar ölü kod değil.
+
+**Eksik kalan 4 alan:** `country`, `terms`, `success`, `error`. Bunlar senin katalogunda yok.
+Ölçtüm: bu sandbox'ta sezgisel eşleme (`forms.py`, TR+EN etiket puanlaması) boşluğu kapatıyor →
+`--selectors` ile senin 6 alanlık haritanı verdiğimde de koşu **60/60**. Ama kontrol deneyi şunu
+gösterdi: **boş** harita (`{}`) ile de **60/60**. Yani bu sayfa "dostu" (temiz id/name/etiket);
+kataloğun değeri, sayfa yeniden tasarlandığında veya etiketler belirsizleştiğinde eşlemeyi
+**kilitlemesidir** — bu yüzden `country`/`terms`/`success`/`error` zincirlerini de ekle.
+
+### 11.2 Çözümleyicide bulunan iki gerçek hata (ve düzeltmeleri)
+
+Sentetik bir sayfa kurdum (iki **anonim** parola input'u + biri reklam biri captcha olan **iki**
+iframe) ve çözümleyiciyi orada koşturdum. Düzeltme **öncesi** üretilen harita:
+
+```json
+{"password": "input[type='password']", "password_confirm": "input[type='password']", "captcha": "iframe"}
+```
+
+1. **Yanlış elemana eşleme (sessiz hata).** `password_confirm` adayı
+   `(//input[@type='password'])[2]` → canonical `input[type='password']`, yani **parola alanının
+   kendisi**. Onay alanı boş kalır, kayıt POST'u patlar — tam da `password_confirm` dersinin
+   tekrarı — ve rapor "matched" derdi. Kök neden: round-trip kontrolü "canonical *bir şeye*
+   uyuyor mu" diye bakıyordu, "*aynı* elemana mı" diye bakmıyordu.
+   **Düzeltme:** problanan eleman geçici bir `data-waft-probe` token'ı ile işaretleniyor ve
+   canonical'ın çözdüğü elemanda o token aranıyor; uyuşmazsa aday
+   `canonical selector points at a different element` ile **reddediliyor** (token her durumda
+   temizleniyor).
+2. **İfade kaybı (bare tag).** `iframe[src*='recaptcha']` canonical'ı `iframe` oluyordu — sayfada
+   iki iframe olduğunda **ilk** iframe'e, yani reklam çerçevesine kilitleniyordu (captcha var
+   sanılır → hedef yanlışlıkla `blocked_captcha`). **Düzeltme:** canonical yalın bir tag'e
+   düşerse ve aday CSS ise adayın kendisi korunuyor (`prefer_specific`); aday XPath ise ve
+   canonical da yalın kalıyorsa aday `canonical selector not specific (bare tag)` ile reddediliyor.
+
+Düzeltme **sonrası** aynı sentetik sayfa:
+
+```text
+resolved haritası: {"password": "input[type='password']", "captcha": "iframe[src*='recaptcha']"}
+missing: ['password_confirm']
+  ✔ password         input[type='password']          matched
+  ✖ password_confirm (//input[@type='password'])[2]  canonical selector points at a different element
+  ✔ captcha          iframe[src*='recaptcha']        matched -> iframe[src*='recaptcha']
+```
+
+Regresyon: kitin kendi kataloğu düzeltme öncesi/sonrası **birebir aynı 7 alanı** üretiyor
+(`{"country","email","first_name","last_name","password","password_confirm","terms"}` — hepsi `#id`),
+ve tam koşu **60/60, exit 0**. Düzeltmeye bağlı 8 yeni test: `tests/test_offerwall_kit_contracts.py`
+(bkz. `test_prefer_specific_keeps_specificity`, `test_resolver_identity_check_is_wired_in`).
+Toplam suite: **101/101**.
+
+### 11.3 Kataloğunu güçlendirmek için öneriler
+
+1. `country`, `terms`, `success`, `error` zincirlerini ekle (senin eksik 4 alan).
+2. `#id` tabanlı adayı **ilk** sıraya al (kit kataloğu öyle yapıyor): `input[name=…]` gibi genel
+   adaylar çoklu formda (ör. aynı sayfada hem kayıt hem giriş formu) yanlış input'a gidebilir.
+3. `:has-text(...)` adaylarını yalnızca `submit` için tut; input alanlarında onlar zaten
+   eşleşmez (WAFT alanları nitelik tabanlı çözüyor).
+4. `textarea`, `select` ve `checkbox` için de zincir ekle — sandbox'ta `#country` (select) ve
+   `#terms` (checkbox) bunlar; anket satırları da (`survey_*`) aynı sınıfta.
+
+## 12. Bir sonraki adım
 
 Kendi staging'inizin host'unu verin: seçicileri gerçek alanlarla günceller, `authorized_hosts.txt`'e
 ekler ve koşuyu orada birlikte doğrularız. Partner entegrasyonuysa postback doğrulamasını

@@ -34,7 +34,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
+import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Final, Iterable, Mapping, Optional, Sequence
@@ -75,6 +77,58 @@ CANONICAL_JS: Final[str] = """
   return tag;
 }
 """
+
+#: JS helper: stamp the probed element so we can prove the canonical selector points at *it*.
+#: Without this the round-trip check only proved "the canonical matches SOMETHING" - a candidate
+#: for the second of two anonymous password inputs canonicalises to ``input[type=\'password\']``
+#: and matched the FIRST input, i.e. the confirm field silently resolved to the password field.
+MARK_JS: Final[str] = """
+(element, token) => {
+  element.setAttribute('data-waft-probe', token);
+  return element.getAttribute('data-waft-probe');
+}
+"""
+
+#: JS helper: does the element the canonical selector resolves to carry our token?
+HAS_MARK_JS: Final[str] = """
+(element, token) => element.getAttribute('data-waft-probe') === token
+"""
+
+#: JS helper: remove the probe stamp (never leave test residue in the page).
+UNMARK_JS: Final[str] = """
+(element) => { element.removeAttribute('data-waft-probe'); return true; }
+"""
+
+#: A canonical selector that is nothing but a tag name (``iframe``, ``button``) carries no
+#: specificity: on a page with two iframes it resolves to the first one - measured: a captcha
+#: chain ``iframe[src*='recaptcha']`` canonicalised to ``iframe`` and locked onto the ad frame.
+BARE_TAG_RE: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9]*$")
+
+#: Attribute-free XPath starts (``(//…``, ``//…``) - WAFT cannot consume XPath, so when the
+#: canonical form is also bare there is nothing specific left to hand over.
+X_PATH_RE: Final[re.Pattern[str]] = re.compile(r"^\(?//")
+
+
+def prefer_specific(canonical: str, candidate: str) -> str:
+    """Return a canonical selector that keeps *some* specificity.
+
+    ``CANONICAL_JS`` falls back to the bare tag name when the element exposes no id/name/
+    data-testid/placeholder/type/href. Handing a bare tag to WAFT means "first element of this
+    tag on the page", which is a wrong-element bug waiting to happen. So:
+
+    * canonical already specific → unchanged;
+    * canonical bare + candidate is a CSS selector that pins something → use the candidate;
+    * canonical bare + candidate is XPath → nothing specific survives, return the bare tag and
+      let the caller reject it (reason: not specific enough).
+    """
+    canonical = (canonical or "").strip()
+    candidate = (candidate or "").strip()
+    if not BARE_TAG_RE.match(canonical):
+        return canonical
+    if candidate and not X_PATH_RE.match(candidate) and not BARE_TAG_RE.match(candidate):
+        return candidate
+    return canonical
+
 
 #: JS helper: is the element visible and fillable/clickable?
 EDITABLE_JS: Final[str] = """
@@ -200,15 +254,29 @@ async def probe_chain(
                 elif state.get("readOnly") and field_name not in {"submit", "success", "verified", "error"}:
                     outcome.reason = "element read-only"
                 else:
-                    canonical = await locator.evaluate(CANONICAL_JS)
-                    # Verify the canonical form round-trips (WAFT resolves it later on its own).
-                    if await page.locator(canonical).first.count() > 0:
-                        outcome.matched = True
-                        outcome.canonical = canonical
-                        outcome.reason = "matched"
-                        outcomes.append(outcome)
-                        return canonical, outcomes
-                    outcome.reason = "canonical selector did not round-trip"
+                    token = f"waft-probe-{field_name}-{uuid.uuid4().hex[:8]}"
+                    try:
+                        await locator.evaluate(MARK_JS, token)
+                        canonical = prefer_specific(await locator.evaluate(CANONICAL_JS), selector)
+                        # Verify the canonical form resolves *to this very element* - WAFT resolves
+                        # it later on its own, so "it matches something" is not good enough.
+                        if await page.locator(canonical).first.count() == 0:
+                            outcome.reason = "canonical selector did not round-trip"
+                        elif BARE_TAG_RE.match(canonical.strip()):
+                            outcome.reason = "canonical selector not specific (bare tag)"
+                        elif await page.locator(canonical).first.evaluate(HAS_MARK_JS, token):
+                            outcome.matched = True
+                            outcome.canonical = canonical
+                            outcome.reason = "matched"
+                            outcomes.append(outcome)
+                            return canonical, outcomes
+                        else:
+                            outcome.reason = "canonical selector points at a different element"
+                    finally:
+                        try:
+                            await locator.evaluate(UNMARK_JS)
+                        except Exception:  # noqa: BLE001 - page may have navigated away
+                            pass
         except Exception as exc:  # noqa: BLE001 - a bad selector must never abort the probe
             outcome.reason = f"error: {type(exc).__name__}: {exc}"
         outcomes.append(outcome)

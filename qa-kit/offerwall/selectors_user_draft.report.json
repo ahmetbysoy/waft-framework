@@ -1,0 +1,104 @@
+{
+  "catalogue": "qa-kit/offerwall/selectors_user_draft.json",
+  "data": "qa-kit/offerwall/targets_offerwall.xlsx",
+  "resolved_file": "qa-kit/offerwall/selectors_user_draft.resolved.json",
+  "hosts": [
+    {
+      "host": "127.0.0.1:8090",
+      "page_url": "http://127.0.0.1:8090/register",
+      "resolved": {
+        "email": "#register-email",
+        "password": "#register-password",
+        "password_confirm": "#register-password-confirm",
+        "first_name": "#first-name",
+        "last_name": "#last-name",
+        "submit": "#register-submit"
+      },
+      "missing": [
+        "captcha"
+      ],
+      "required_missing": [],
+      "error": null,
+      "candidates": [
+        {
+          "field_name": "email",
+          "selector": "input[name='email']",
+          "matched": true,
+          "canonical": "#register-email",
+          "reason": "matched"
+        },
+        {
+          "field_name": "password",
+          "selector": "input[name='password']",
+          "matched": true,
+          "canonical": "#register-password",
+          "reason": "matched"
+        },
+        {
+          "field_name": "password_confirm",
+          "selector": "input[name='password_confirm']",
+          "matched": true,
+          "canonical": "#register-password-confirm",
+          "reason": "matched"
+        },
+        {
+          "field_name": "first_name",
+          "selector": "input[name='first_name']",
+          "matched": true,
+          "canonical": "#first-name",
+          "reason": "matched"
+        },
+        {
+          "field_name": "last_name",
+          "selector": "input[name='last_name']",
+          "matched": true,
+          "canonical": "#last-name",
+          "reason": "matched"
+        },
+        {
+          "field_name": "submit",
+          "selector": "button[type='submit']",
+          "matched": true,
+          "canonical": "#register-submit",
+          "reason": "matched"
+        },
+        {
+          "field_name": "captcha",
+          "selector": "iframe[src*='recaptcha']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "captcha",
+          "selector": "iframe[src*='hcaptcha']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "captcha",
+          "selector": "div.g-recaptcha",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "captcha",
+          "selector": "div.h-captcha",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        }
+      ]
+    }
+  ],
+  "flat_map": {
+    "email": "#register-email",
+    "password": "#register-password",
+    "password_confirm": "#register-password-confirm",
+    "first_name": "#first-name",
+    "last_name": "#last-name",
+    "submit": "#register-submit"
+  }
+}
