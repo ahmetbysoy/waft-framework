@@ -1,5 +1,8 @@
 # WAFT — Web Automation & Form-Test Framework
 
+[![CI](https://github.com/ahmetbysoy/waft-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmetbysoy/waft-framework/actions/workflows/ci.yml)
+[![Nightly regression](https://github.com/ahmetbysoy/waft-framework/actions/workflows/nightly.yml/badge.svg)](https://github.com/ahmetbysoy/waft-framework/actions/workflows/nightly.yml)
+
 > **Playwright tabanlı, çok bağlamlı (multi-context) web otomasyon ve form doldurma test
 > çerçevesi.** Tek tarayıcı motoru altında **10+ izole browser context** çalıştırır; her
 > bağlama kendi **proxy'sini, user-agent'ını, saat dilimini, konumunu ve parmak izini** atar;

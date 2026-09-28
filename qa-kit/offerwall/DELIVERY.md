@@ -1995,6 +1995,7 @@ Tam `sandbox_up.sh` kaynağı:
 # Kullanım:
 #   bash qa-kit/offerwall/sandbox_up.sh              # başlat → koştur → temizle
 #   bash qa-kit/offerwall/sandbox_up.sh --keep        # sunucuları açık bırak (artefakt incelemesi)
+#   bash qa-kit/offerwall/sandbox_up.sh --no-color    # diğer bayraklar run_offerwall.py'ye geçer
 #   CONTEXTS=4 CONCURRENCY=2 bash qa-kit/offerwall/sandbox_up.sh
 #
 # Çıkış kodları: run_offerwall.py'nin kodu aynen döner (0 PASSED | 1 fail | 2 usage |
@@ -2013,7 +2014,17 @@ CONTEXTS="${CONTEXTS:-10}"
 CONCURRENCY="${CONCURRENCY:-5}"
 
 KEEP=0
-[[ "${1:-}" == "--keep" ]] && KEEP=1
+PASSTHROUGH=()
+# `--keep` bizim bayrağımız; geri kalan HER argüman run_offerwall.py'ye aynen geçirilir.
+# (Önceki sürüm yalnızca "${@:2}" iletiyordu: `--no-color` gibi bir bayrak ilk sırada verilirse
+#  sessizce düşüyordu — CI'da renk kodlarını kapatmak için bu tam olarak yapılıyor.)
+for arg in "$@"; do
+  if [[ "${arg}" == "--keep" ]]; then
+    KEEP=1
+  else
+    PASSTHROUGH+=("${arg}")
+  fi
+done
 
 LOGDIR="${ROOT}/artifacts/_sandbox_logs"
 mkdir -p "${LOGDIR}"
@@ -2086,7 +2097,7 @@ fi
 log "koşu başlıyor: ${CONTEXTS} context / ${CONCURRENCY} paralel (run_offerwall.py --sandbox)"
 set +e
 "${PY}" "${HERE}/run_offerwall.py" --sandbox \
-  --contexts "${CONTEXTS}" --concurrency "${CONCURRENCY}" "${@:2}"
+  --contexts "${CONTEXTS}" --concurrency "${CONCURRENCY}" "${PASSTHROUGH[@]:-}"
 code=$?
 set -e
 

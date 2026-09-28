@@ -1,6 +1,6 @@
 {
   "catalogue": "/home/user/waft-framework/qa-kit/selectors.json",
-  "data": "qa-kit/targets.xlsx",
+  "data": "/tmp/targets_nightly.xlsx",
   "resolved_file": "/home/user/waft-framework/qa-kit/selectors.resolved.json",
   "hosts": [
     {

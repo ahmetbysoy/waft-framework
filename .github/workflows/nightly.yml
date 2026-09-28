@@ -1,0 +1,107 @@
+name: Nightly regression
+
+# Gece regresyonu: kayıt + e-posta doğrulama kitini (10 bağlam × 12 satır = 120 koşu) ve
+# offerwall akışını gerçek tarayıcı + gerçek SMTP/IMAP üzerinden çalıştırır, artefaktları saklar.
+#
+# GitHub Actions'ın çalışma modeli: iş başlar, çalışır, BİTER (ephemeral). Bu yüzden burada
+# 7/24 açık bir servis yok — sürekli çalışan bir şey gerekiyorsa burası yanlış yer (VPS/konteyner).
+#
+# Zamanlanmış işler hakkında iki gerçek:
+#   1) `schedule` gecikebilir (yoğunlukta 5-30 dk, bazen tamamen atlanır) — dakika hassasiyeti yok.
+#   2) 60 gün boyunca depoda etkinlik olmazsa zamanlanmış işler otomatik devre dışı kalır
+#      (Actions sekmesinden yeniden etkinleştirilir).
+#
+# Kapsam: yalnızca bu repodaki yerel mock hedefler (127.0.0.1) — üçüncü taraf sitesi yok.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-regression
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_PROGRESS_BAR: "off"
+
+jobs:
+  signup-kit:
+    name: Kayıt + doğrulama kiti (120 koşu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v4
+
+      - name: Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Playwright tarayıcı önbelleği
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Bağımlılıklar + Chromium
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Yerel yığın (devmail + demo site)
+        run: bash .github/scripts/start_local_stack.sh
+
+      - name: Hedef verisi üret + seçicileri çöz
+        run: |
+          python qa-kit/make_targets.py --base-url http://127.0.0.1:8080 --rows 12 \
+            --mail-domain demo.waft.local
+          python qa-kit/selector_resolver.py --data qa-kit/targets.xlsx
+
+      - name: Regresyon koşusu (10 bağlam / 10 paralel, IMAP açık)
+        run: |
+          python qa-kit/run_regression.py \
+            --data qa-kit/targets.xlsx \
+            --contexts 10 --concurrency 10 \
+            --proxy-mode off \
+            --imap --imap-host 127.0.0.1 --imap-port 1430 \
+            --imap-user devmail --imap-password devmail --imap-no-ssl \
+            --imap-subject-regex "(doğrula|dogrula|verify|aktivasyon|activat)" \
+            --captcha-action skip \
+            --stealth --verify-stealth --capture-har --log-network \
+            --trace on-failure --rate-limit 5 --no-color
+
+      - name: Koşu özeti (job summary)
+        if: always()
+        run: python .github/scripts/ci_summary.py
+
+      - name: Yerel yığını kapat
+        if: always()
+        run: bash .github/scripts/start_local_stack.sh --stop
+
+      - name: Servis günlükleri
+        if: always()
+        run: tail -n 40 artifacts/_nightly_logs/*.log || true
+
+      - name: Artefaktlar
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: waft-nightly-artifacts
+          path: |
+            artifacts/
+            qa-kit/selectors.resolved.json
+            qa-kit/selectors.resolved.report.json
+          if-no-files-found: warn
+          retention-days: 30

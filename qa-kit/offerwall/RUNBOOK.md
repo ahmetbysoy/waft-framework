@@ -620,7 +620,64 @@ izlenebilir kalır.
 * **Kendi offerwall/reward ürününü kurmak:** davet kodu, dönüşüm doğrulama, hile tespiti, adil
   kullanım limitleri — bu sistemin test edilmesi asıl mühendislik işidir ve kit bunun için var.
 
-## 15. Bir sonraki adım
+## 15. GitHub Actions CI (repoda hazır)
+
+Playwright + Actions doğru bir eşleşme; ama Actions **ephemeral** bir iştir — başlar, çalışır,
+biter. Bu repoda o modele uygun iki workflow var:
+
+| Workflow | Tetikleyici | Ne yapar | Süre |
+|---|---|---|---|
+| `.github/workflows/ci.yml` | `push`/`PR` → `main`, elle | Statik kapılar (ruff, tarayıcısız pytest, hedef & kimlik doğrulama, DELIVERY drift) + gerçek tarayıcıyla uçtan uca koşu | ~5-8 dk |
+| `.github/workflows/nightly.yml` | `schedule: 0 2 * * *`, elle | Kayıt + doğrulama kiti: 10 bağlam × 12 satır = **120 koşu**, gerçek SMTP/IMAP, artefaktlar 30 gün | ~6 dk |
+
+Yerelde birebir doğrulandı:
+
+```text
+$ python3 qa-kit/run_regression.py --data <hedef> --contexts 10 --concurrency 10 \
+    --imap --imap-host 127.0.0.1 --imap-port 1430 --imap-user devmail --imap-password devmail \
+    --imap-no-ssl --captcha-action skip --stealth --verify-stealth --capture-har --log-network \
+    --trace on-failure --rate-limit 5 --no-color
+WAFT run run-20260928-193702-e16157 PASSED ✅ | 120/120 target(s) ok (100.0%) | 105.2s
+  contexts : 10 ok / 0 failed   steps : 960 ok / 0 failed   e-mail verif. : 120 ok / 0 failed
+```
+
+### 15.1 CI'da ne var
+
+* **Tarayıcı önbelleği:** `~/.cache/ms-playwright`, `requirements.txt` hash'i ile anahtarlanır.
+* **Job summary:** `.github/scripts/ci_summary.py` en yeni koşuyu okur ve özet tabloyu
+  `$GITHUB_STEP_SUMMARY`'ye yazar (hedef/adım/doğrulama sayaçları + keşfedilen API uçları).
+* **Artefaktlar:** `artifacts/` (HAR, ekran görüntüleri, trace, `junit.xml`, `endpoints.json`,
+  `run.json`, `results.csv`) — başarısız koşuda da yüklenir (`if: always()`).
+* **Yerel yığın:** `.github/scripts/start_local_stack.sh` devmail (1025/1430) + demo site (8080)
+  kaldırır, portları bekler, `--stop` ile yalnızca kendi başlattıklarını kapatır.
+* **Kapsam:** CI'da da **üçüncü taraf hedef yok**; `run_offerwall.py`'nin kapsam kapısı koşuda
+  zorunludur, workflow yalnızca `127.0.0.1` sandbox'ına gider.
+
+### 15.2 Actions hakkında yaygın yanlış varsayımlar
+
+| Varsayım | Gerçek |
+|---|---|
+| "cron tam zamanında çalışır" | `schedule` yoğunlukta **5-30 dk gecikir**, bazen atlanır. Dakika hassasiyeti yok; kritik iş için harici zamanlayıcı kullanın. |
+| "zamanlanmış iş sonsuza kadar çalışır" | Depoda **60 gün** etkinlik olmazsa zamanlanmış workflow'lar otomatik **devre dışı** kalır (Actions sekmesinden yeniden açılır). |
+| "Actions'ı 7/24 servis olarak kullanırım" | Çalışma modeli ephemeral: iş biter, makine yok olur. Sürekli oturum/WebSocket gerekiyorsa VPS/konteyner gerekir. |
+| "workflow her zaman en son commit'imi kullanır" | `schedule` ve `workflow_dispatch`, workflow dosyasının **varsayılan daldaki** sürümünü kullanır. |
+| "artefaktlar kalıcı" | Varsayılan saklama 90 gün (burada 14/30 gün olarak ayarlandı) ve `upload-artifact@v4` artefaktları **değiştirilemez**. |
+| "Actions'ı genel amaçlı ücretsiz işlemci olarak kullanırım" | GitHub kullanım şartları, Actions'ın depoyla ilgili yazılımın üretimi/testi/dağıtımı dışındaki işlerde kullanılmasını yasaklar; her workflow kendi deposunun yazılımına bağlı olmalı. |
+
+### 15.3 CI dosyalarının doğrulaması (bu repoda yapıldı)
+
+```text
+$ actionlint -shellcheck=shellcheck .github/workflows/ci.yml .github/workflows/nightly.yml
+exit=0                                  # şema + ifade + kabuk denetimi temiz
+$ shellcheck .github/scripts/start_local_stack.sh
+temiz
+$ bash .github/scripts/start_local_stack.sh && curl -sf localhost:8080/ >/dev/null
+yığın hazır: IMAP 1430 · HTTP 8080      # sonra --stop ile temizlendi
+$ python3 .github/scripts/ci_summary.py
+→ 120 ok / 0 fail · 960 adım · 120 doğrulama · 2 API ucu (markdown tablo)
+```
+
+## 16. Bir sonraki adım
 
 Kendi staging'inizin host'unu verin: seçicileri gerçek alanlarla günceller, `authorized_hosts.txt`'e
 ekler ve koşuyu orada birlikte doğrularız. Partner entegrasyonuysa postback doğrulamasını
