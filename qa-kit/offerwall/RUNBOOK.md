@@ -578,7 +578,49 @@ kutusu, aynı oturum geçmişi). Hem `import_credentials.py` hem `validate_targe
 
 Testler: `tests/test_offerwall_import_credentials.py` (33 test) — toplam suite **145/145**.
 
-## 14. Bir sonraki adım
+## 14. Kapsam kilidi neden kaldırılmıyor
+
+Aynı istek birkaç kez farklı çerçevelemeyle geldi: "yük testi aracı", "kod nötrdür", "kilidi devre
+dışı bırak". Karar değişmiyor. Gerekçe aşağıda; bu bir bug değil, tasarım.
+
+**1. İstenen şey beyan edildi.** Talep, üçüncü taraf offerwall platformlarında (timewall.io,
+jumptask.io) onlarca hesapla otomatik kayıt açmak, doğrulama maillerini toplamak, sonra keşfedilen
+kayıt/ödeme uçlarına arayüzü ve CAPTCHA'yı atlayarak doğrudan ve yüksek hızda istek atmak. Bu
+"kendi sistemimin yük testi" değil; hedef, sahibi olmadığın ve izin vermediğin bir üretim sistemi.
+
+**2. Bu teknik olarak dolandırıcılık.** Offerwall/reward ağları dönüşüm (kayıt, anket, kurulum)
+başına ödeme yapar; reklamveren bu dönüşüm için bütçe ayırır. Sahte hesaplarla üretilen dönüşüm
+= ağdan haksız kazanç. Sonuçları: ödeme iptali/geri alım (clawback), hesap ve KYC kalıcı banı,
+cihaz parmak izi paylaşımı üzerinden ağ genelinde blok, gerekirse hukuki süreç. "Ama kullanıcı
+sözleşmesini okumadım" bunu değiştirmiyor.
+
+**3. "Kod nötrdür" argümanı burada geçersiz.** Aracın hedefi ve kullanım amacı, aracın kendisinin
+parçası. Aynı HTTP istemcisi kendi staging'inde yük testi, başkasının ödeme sisteminde sahte
+dönüşüm üretir. Nötr olan şey matematik; burada etkisi olan şey topluca, gizlenerek, izin dışı
+davranmak — ki niyet zaten açıkça yazıldı ("para geliyor", "sistemi sömürürsün").
+
+**4. Kilit test etmeyi engellemiyor.** `authorized_hosts.txt` bir "cetvel" değil, gerçek pentest
+projelerindeki *scope file* mantığının aynısı. Kendi sistemini listeye eklediğin an kilit yok:
+`--base-url https://staging.senin-sirketin.com` veya `--sandbox` ile tam akış çalışıyor (60/60
+hedef, 20/20 doğrulama, HAR + endpoints.json). Yani kilit "test yapma"yı değil, "başkasının
+sistemini test etme"yi engelliyor.
+
+**5. Kilidi silmek işi meşru yapmaz.** Dosyayı düzenlemek serbest — senin makinan. Ama bu, teknik
+engeli değil yalnızca denetim izini kaldırır: kayıtlar (login denemeleri, posta akışı, ödeme
+talepleri) hedef tarafta kalır. Kitin kendi koşu çıktısı da maskeli manifest ve artefacts ile
+izlenebilir kalır.
+
+**Bunun yerine yapılabilecek meşru işler (hepsi kit tarafından destekli):**
+
+* **Ödül/offerwall tarafında çalışıyorsan:** sağlayıcının resmî API'si + yazılı verdiği sandbox.
+  Postback doğrulaması, imza, idempotency ve yük davranışı `postback_receiver.py` ile test edilir
+  (§8) — bu tam olarak senin tarafındaki uçtur.
+* **Kendi ürününün kayıt/davet akışını test etmek:** 10 hesap, 10 izole context, e-posta
+  doğrulama, HAR ve API keşfi `--base-url` ile tam çalışır.
+* **Kendi offerwall/reward ürününü kurmak:** davet kodu, dönüşüm doğrulama, hile tespiti, adil
+  kullanım limitleri — bu sistemin test edilmesi asıl mühendislik işidir ve kit bunun için var.
+
+## 15. Bir sonraki adım
 
 Kendi staging'inizin host'unu verin: seçicileri gerçek alanlarla günceller, `authorized_hosts.txt`'e
 ekler ve koşuyu orada birlikte doğrularız. Partner entegrasyonuysa postback doğrulamasını
