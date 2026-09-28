@@ -1,0 +1,8 @@
+{
+  "email": "#email",
+  "password": "#password",
+  "password_confirm": "#password_confirm",
+  "first_name": "#fname",
+  "last_name": "#lname",
+  "terms": "#terms"
+}

@@ -1,0 +1,181 @@
+{
+  "_comment": [
+    "Fallback selector catalogue for the WAFT regression kit (see qa-kit/README.md).",
+    "Each field holds an ORDERED list of candidates: CSS first, then XPath. The resolver",
+    "(selector_resolver.py) probes them in a real browser and emits selectors.resolved.json,",
+    "a flat WAFT-native map ({data_key: selector}) that is passed via --selectors.",
+    "'hosts' blocks are matched on host:port (exact), then on host (exact), then '*'.",
+    "Everything here targets YOUR OWN application. Do not add selectors for systems you",
+    "are not authorised to test."
+  ],
+  "version": 1,
+  "defaults": {
+    "probe_timeout_ms": 10000,
+    "require_visible": true
+  },
+  "hosts": {
+    "127.0.0.1:8080": {
+      "email": [
+        "#email",
+        "input[name='email']",
+        "input[type='email']",
+        "[data-testid='signup-email']",
+        "[autocomplete='email']",
+        "//input[@type='email']",
+        "//label[contains(translate(., 'EPOSTAİ', 'epostaİ'), 'e-posta')]/following::input[1]"
+      ],
+      "password": [
+        "#password",
+        "input[name='password']",
+        "input[type='password']",
+        "[autocomplete='new-password']",
+        "//input[@type='password']"
+      ],
+      "password_confirm": [
+        "#password_confirm",
+        "input[name='password_confirm']",
+        "input[name='password2']",
+        "input[name='confirm_password']",
+        "//label[contains(., 'tekrar')]/following::input[@type='password'][1]"
+      ],
+      "first_name": [
+        "#fname",
+        "input[name='first_name']",
+        "input[name='fname']",
+        "[autocomplete='given-name']",
+        "//input[contains(@placeholder, 'Adınız')]"
+      ],
+      "last_name": [
+        "#lname",
+        "input[name='last_name']",
+        "[autocomplete='family-name']",
+        "//input[contains(@placeholder, 'Soyad')]"
+      ],
+      "terms": [
+        "#terms",
+        "input[name='terms']",
+        "input[type='checkbox'][required]",
+        "//input[@type='checkbox'][@required]"
+      ],
+      "submit": [
+        "[data-testid='signup-submit']",
+        "button[type='submit']",
+        "input[type='submit']",
+        "//button[contains(translate(., 'KAYDOL', 'kaydol'), 'kaydol')]",
+        "//button[contains(., 'Üye')]",
+        "//button[contains(translate(., 'GÖNDER', 'gönder'), 'gönder')]"
+      ],
+      "success": [
+        "[data-testid='success']",
+        ".notice.success",
+        "text=Kayıt başarılı",
+        "//*[contains(@class, 'success')]"
+      ],
+      "verified": [
+        "[data-testid='verified']",
+        "text=Hesabınız doğrulandı",
+        "//*[contains(text(), 'doğrulandı')]"
+      ],
+      "error": [
+        "[data-testid='error']",
+        ".notice.error",
+        "//*[contains(@class, 'error')]"
+      ],
+      "captcha": [
+        "iframe[src*='recaptcha']",
+        "iframe[src*='hcaptcha']",
+        "#captcha",
+        "[data-testid='captcha']"
+      ]
+    },
+    "*": {
+      "_comment": "Generic, framework-agnostic fallbacks for 'your own app' (staging/vendor-free).",
+      "email": [
+        "#email",
+        "input[type='email']",
+        "input[name='email']",
+        "input[name='username']",
+        "[autocomplete='email']",
+        "[data-testid*='email']",
+        "//input[contains(@id, 'email') or contains(@name, 'email')]"
+      ],
+      "password": [
+        "input[type='password']",
+        "input[name='password']",
+        "#password",
+        "[autocomplete='new-password']",
+        "//input[@type='password']"
+      ],
+      "password_confirm": [
+        "input[name='password_confirm']",
+        "input[name='password2']",
+        "input[name='confirm_password']",
+        "input[name='passwordConfirmation']",
+        "[autocomplete='new-password'] + input[type='password']",
+        "(//input[@type='password'])[2]"
+      ],
+      "first_name": [
+        "input[name='first_name']",
+        "input[name='firstName']",
+        "input[name='given_name']",
+        "[autocomplete='given-name']",
+        "input[name='name']",
+        "//label[contains(translate(., 'AD', 'ad'), 'ad')]/following::input[1]"
+      ],
+      "last_name": [
+        "input[name='last_name']",
+        "input[name='lastName']",
+        "input[name='family_name']",
+        "[autocomplete='family-name']",
+        "input[name='surname']"
+      ],
+      "terms": [
+        "input[type='checkbox'][required]",
+        "input[name='terms']",
+        "input[name='kvkk']",
+        "#terms",
+        "//input[@type='checkbox'][@id='terms']"
+      ],
+      "submit": [
+        "button[type='submit']",
+        "input[type='submit']",
+        "[data-testid='submit']",
+        "button:has-text('Kaydol')",
+        "button:has-text('Gönder')",
+        "button:has-text('Sign up')",
+        "//button[@type='submit']"
+      ],
+      "success": [
+        "[data-testid='success']",
+        "[role='alert'].success",
+        ".alert-success",
+        ".notice.success",
+        "text=success",
+        "text=başarılı",
+        "//*[contains(@class, 'success') or contains(@class, 'alert-success')]"
+      ],
+      "verified": [
+        "[data-testid='verified']",
+        "[data-testid='verification-success']",
+        "text=doğrulandı",
+        "text=verified",
+        "//*[contains(text(), 'doğrulandı') or contains(text(), 'verified')]"
+      ],
+      "error": [
+        "[role='alert'].error",
+        ".alert-danger",
+        ".notice.error",
+        "[data-testid='error']",
+        "//*[contains(@class, 'error')]"
+      ],
+      "captcha": [
+        "iframe[src*='recaptcha']",
+        "iframe[src*='hcaptcha']",
+        "iframe[src*='turnstile']",
+        ".g-recaptcha",
+        ".h-captcha",
+        "[data-testid='captcha']"
+      ]
+    }
+  }
+}

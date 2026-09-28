@@ -29,10 +29,12 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import smtplib
 import time
 import urllib.parse
+from email.message import EmailMessage
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 PAGE = """<!doctype html>
 <html lang="tr">
@@ -226,6 +228,49 @@ CAPTCHA_PAGE = """
 """
 
 
+def send_verification_mail(server: ThreadingHTTPServer, to_addr: str, token: str) -> Optional[str]:
+    """Best effort SMTP delivery of the account-verification mail (``--smtp-host``).
+
+    The mail mirrors what a real sign-up flow sends: a subject containing the word
+    "doğrula" plus a one-click verification link.  It is used by ``qa-kit`` to exercise the
+    IMAP watcher end-to-end against a local mail server (Mailpit / MailHog) instead of a
+    real inbox.  Returns the message-id on success, ``None`` when SMTP is not configured or
+    the hand-off failed (the web flow never fails because of mail problems).
+    """
+    host = getattr(server, "smtp_host", None)
+    if not host:
+        return None
+    port = int(getattr(server, "smtp_port", 1025))
+    mail_from = str(getattr(server, "mail_from", "demo@waft.local"))
+    public_url = str(getattr(server, "public_url", "http://127.0.0.1:8080")).rstrip("/")
+    link = f"{public_url}/verify?token={token}"
+
+    message = EmailMessage()
+    message["From"] = f"WAFT Demo <{mail_from}>"
+    message["To"] = to_addr
+    message["Subject"] = "Hesabınızı doğrulayın (verify your account)"
+    message["X-Demo-Token"] = token
+    message.set_content(
+        "Merhaba,\n\n"
+        "Kaydınızı tamamlamak için aşağıdaki bağlantıya tıklayarak hesabınızı doğrulayın:\n\n"
+        f"{link}\n\n"
+        "Bu e-postayı siz istemediyseniz yok sayabilirsiniz.\n\n"
+        "— WAFT demo uygulaması"
+    )
+    message.add_alternative(
+        "<p>Merhaba,</p><p>Hesabınızı doğrulamak için "
+        f'<a href="{link}">bu bağlantıya tıklayın</a>.</p><p>— WAFT demo uygulaması</p>',
+        subtype="html",
+    )
+    try:
+        with smtplib.SMTP(host, port, timeout=5) as smtp:
+            smtp.send_message(message)
+    except Exception as exc:  # noqa: BLE001 - mail problems must never break the demo
+        print(f"[demo] verification mail could not be sent via {host}:{port} ({exc})")
+        return None
+    return message["Message-ID"] or token
+
+
 class DemoHandler(BaseHTTPRequestHandler):
     """Request handler implementing the demo application."""
 
@@ -330,11 +375,19 @@ class DemoHandler(BaseHTTPRequestHandler):
                 )
                 return
             summary = {key: values[0] for key, values in sorted(data.items()) if key != "password" and key != "password_confirm"}
+            token = f"tok-{random.randint(100000, 999999)}"
+            self.server.verification_tokens.append((email, token))  # type: ignore[attr-defined]
+            mail_id = send_verification_mail(self.server, email, token)
+            mail_note = (
+                f"<p class='muted'>Doğrulama e-postası gönderildi (message-id: {mail_id}).</p>"
+                if mail_id
+                else "<p class='muted'>Doğrulama e-postası gönderildi (demo, SMTP kapalı).</p>"
+            )
             self._page(
                 "Kayıt başarılı",
                 '<h1>Kayıt başarılı 🎉</h1>'
                 '<div class="notice success" data-testid="success">Teşekkürler, kaydınız alındı.</div>'
-                '<p class="muted">Doğrulama e-postası gönderildi (demo).</p>'
+                f'{mail_note}'
                 f"<pre>{json.dumps(summary, ensure_ascii=False, indent=2)}</pre>"
                 '<p><a href="/dashboard">Panele git</a></p>',
             )
@@ -342,11 +395,29 @@ class DemoHandler(BaseHTTPRequestHandler):
         self._json({"error": "not_found"}, status=404)
 
 
-def build_server(port: int, *, quiet: bool = False, host: str = "0.0.0.0") -> ThreadingHTTPServer:
-    """Create the demo HTTP server (not yet started)."""
+def build_server(
+    port: int,
+    *,
+    quiet: bool = False,
+    host: str = "0.0.0.0",
+    smtp_host: Optional[str] = None,
+    smtp_port: int = 1025,
+    mail_from: str = "demo@waft.local",
+    public_url: Optional[str] = None,
+) -> ThreadingHTTPServer:
+    """Create the demo HTTP server (not yet started).
+
+    ``smtp_host`` (optional) enables real verification e-mails - point it at Mailpit /
+    MailHog while testing the IMAP watcher (see ``qa-kit/README.md``).
+    """
     server = ThreadingHTTPServer((host, port), DemoHandler)
     server.daemon_threads = True
     server.quiet = quiet  # type: ignore[attr-defined]
+    server.smtp_host = smtp_host  # type: ignore[attr-defined]
+    server.smtp_port = smtp_port  # type: ignore[attr-defined]
+    server.mail_from = mail_from  # type: ignore[attr-defined]
+    server.public_url = public_url or f"http://127.0.0.1:{port}"  # type: ignore[attr-defined]
+    server.verification_tokens = []  # type: ignore[attr-defined]
     return server
 
 
@@ -355,10 +426,24 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=8080, help="TCP port to listen on (default: 8080)")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Bind address (default: 0.0.0.0)")
     parser.add_argument("--quiet", action="store_true", help="Do not log every request")
+    parser.add_argument("--smtp-host", type=str, default=None, help="SMTP host for verification mails (e.g. 127.0.0.1)")
+    parser.add_argument("--smtp-port", type=int, default=1025, help="SMTP port (Mailpit default: 1025)")
+    parser.add_argument("--mail-from", type=str, default="demo@waft.local", help="Envelope/From address")
+    parser.add_argument("--public-url", type=str, default=None, help="Base URL used inside e-mail links")
     args = parser.parse_args()
 
-    server = build_server(args.port, quiet=args.quiet, host=args.host)
+    server = build_server(
+        args.port,
+        quiet=args.quiet,
+        host=args.host,
+        smtp_host=args.smtp_host,
+        smtp_port=args.smtp_port,
+        mail_from=args.mail_from,
+        public_url=args.public_url,
+    )
     print(f"WAFT demo site listening on http://{args.host}:{args.port}/  (Ctrl+C to stop)")
+    if args.smtp_host:
+        print(f"Verification mails -> smtp://{args.smtp_host}:{args.smtp_port} (from {args.mail_from})")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

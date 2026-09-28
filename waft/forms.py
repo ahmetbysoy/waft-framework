@@ -595,6 +595,10 @@ class FormFiller:
                 )
             )
             taken_fields.add(field.index)
+            # The key is now satisfied: without this the heuristic pass below would re-match it
+            # against the next spare field (e.g. "password" leaking into "password_confirm")
+            # and would then wrongly report the key as unmatched.
+            used_keys.add(key)
 
         # 2) heuristic scoring for everything else. Disabled/read-only inputs can never be
         #    filled, so they are removed from the candidate set entirely.

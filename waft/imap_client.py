@@ -654,6 +654,7 @@ class ImapClient:
         timeout = float(timeout_s or self.settings.timeout_s)
         interval = float(poll_interval_s or self.settings.poll_interval_s)
         since = since or datetime.now(timezone.utc)
+        deadline = time.monotonic() + timeout
         stopwatch = Stopwatch()
         stopwatch.__enter__()
         attempts = 0
@@ -667,7 +668,7 @@ class ImapClient:
             self.settings.sender_filter or "*",
         )
 
-        while stopwatch.elapsed_ms / 1000.0 < timeout:
+        while time.monotonic() < deadline:
             attempts += 1
             try:
                 messages = await self.fetch_messages(since=since, target_email=target_email, limit=10)
@@ -701,7 +702,7 @@ class ImapClient:
                     if best is None:
                         best = extracted
 
-            remaining = timeout - stopwatch.elapsed_ms / 1000.0
+            remaining = deadline - time.monotonic()
             if remaining <= 0:
                 break
             await asyncio.sleep(min(interval, max(0.5, remaining)))

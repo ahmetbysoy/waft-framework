@@ -559,6 +559,20 @@ sınırlar içinde (rate-limit, iterations) yapın. Sorumluluk kullanıcıdadır
 
 > Yasal uyarının tam metni: [`NOTICE.md`](NOTICE.md) · Lisans: [MIT](LICENSE)
 
+## 18. Hazır QA kiti (`qa-kit/`) — kayıt + e-posta doğrulama regresyonu
+
+`qa-kit/` klasörü, **kendi sisteminizde** (staging / pre-prod / yetkili olduğunuz ortam)
+kayıt formu doldurma + e-posta doğrulama akışını **10 paralel bağlamla** çalıştıran hazır bir
+kittir: veri şeması (`targets.xlsx` + `make_targets.py`), yedekli seçici kataloğu
+(`selectors.json` + `selector_resolver.py`), tip belirtimli sürücü (`run_regression.py`),
+terminal komutu (`run_regression.sh`), kapsam dosyası (`authorized_hosts.txt`) ve Docker'sız
+yerel posta sunucusu (`devmail.py`). Ayrıntılar: [`qa-kit/README.md`](qa-kit/README.md).
+
+> `run_regression.py` üçüncü taraf offerwall / mikro görev platformlarını (ör. timewall.io,
+> jumptask.io) **her koşulda reddeder**: orada otomatik hesap açmak yük testi değil, abuse'dır.
+> Kiti hedeflemek için `--base-url` ile kendi ortamınızı verin ve host'u
+> `qa-kit/authorized_hosts.txt` dosyasına ekleyin.
+
 ### Hızlı komut özeti
 
 ```bash

@@ -395,27 +395,49 @@ class RateLimiter:
 
 
 class Stopwatch:
-    """Context-manager stopwatch producing millisecond durations."""
+    """Context-manager stopwatch producing millisecond durations.
 
-    __slots__ = ("_started", "elapsed_ms", "started_at")
+    ``elapsed_ms`` is *live* while the stopwatch runs and frozen by ``__exit__``/``stop()``
+    - callers may read it inside the measured block (progress logs, timeouts) or afterwards
+    (``step.duration_ms``) and always get a sensible number.  Before the first ``__enter__``
+    it reports ``0.0``.
+    """
+
+    __slots__ = ("_started", "_frozen_ms", "started_at")
 
     def __init__(self) -> None:
         self._started = 0.0
-        self.elapsed_ms = 0.0
+        self._frozen_ms: Optional[float] = None
         self.started_at = now_iso()
+
+    @property
+    def elapsed_ms(self) -> float:
+        """Milliseconds since ``__enter__`` (frozen once the block finished)."""
+        if self._frozen_ms is not None:
+            return self._frozen_ms
+        if not self._started:
+            return 0.0
+        return (time.perf_counter() - self._started) * 1000.0
+
+    @property
+    def running(self) -> bool:
+        """True while the stopwatch is measuring and has not been frozen yet."""
+        return self._frozen_ms is None and bool(self._started)
 
     def __enter__(self) -> "Stopwatch":
         self._started = time.perf_counter()
+        self._frozen_ms = None
         self.started_at = now_iso()
         return self
 
     def __exit__(self, *_exc: object) -> bool:
-        self.elapsed_ms = (time.perf_counter() - self._started) * 1000.0
+        self._frozen_ms = self.elapsed_ms
         return False
 
     def stop(self) -> float:
-        self.elapsed_ms = (time.perf_counter() - self._started) * 1000.0
-        return self.elapsed_ms
+        """Freeze and return the elapsed milliseconds (idempotent)."""
+        self._frozen_ms = self.elapsed_ms
+        return self._frozen_ms
 
 
 # --------------------------------------------------------------------------------------

@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------------
+# YETKİLİ HEDEF LİSTESİ (scope file)
+#
+# WAFT'ın bu kit üzerinden çalıştırılabileceği host'lar. Listede olmayan bir
+# host'a koşu başlatılırsa run_regression.py hata verir ve durur. Amaç: yanlışlıkla
+# sahibi olmadığın bir üretim sistemine yük bindirmeni / hesap açma akışı
+# çalıştırmanı engellemek. Gerçek pentest projelerindeki "scope file" mantığının
+# aynısı.
+#
+# Kural: sadece kendi altyapın veya yazılı izin aldığın ortamlar (staging,
+# pre-prod, müşteri test ortamı, bug-bounty kapsamı) burada yer alır.
+# ---------------------------------------------------------------------------
+
+# yerel geliştirme / demo (varsayılan olarak hazır)
+127.0.0.1
+localhost
+::1
+*.waft.local
+
+# --- kendi ortamlarınızı ekleyin (örnek biçim) ------------------------------
+# staging.sirketiniz.com
+# qa-app.internal
+# *.staging.example.com
+
+# --- NOT --------------------------------------------------------------------
+# timewall.io, jumptask.io gibi sahibi olmadığınız 3. parti offerwall/mikro
+# görev platformları buraya EKLENMEZ: o platformlarda otomatik hesap açma,
+# proxy rotasyonu, stealth ve doğrulama-linki toplama hem kullanım şartlarına
+# aykırıdır hem de dolandırıcılık/abuse kapsamına girer. Onlarla entegrasyon
+# testi yalnızca sağladıkları resmî sandbox/API ve yazılı izinle yapılır.

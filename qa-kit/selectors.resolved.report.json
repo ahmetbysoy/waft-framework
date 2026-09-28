@@ -1,0 +1,192 @@
+{
+  "catalogue": "/home/user/waft-framework/qa-kit/selectors.json",
+  "data": "qa-kit/targets.xlsx",
+  "resolved_file": "/home/user/waft-framework/qa-kit/selectors.resolved.json",
+  "hosts": [
+    {
+      "host": "127.0.0.1:8080",
+      "page_url": "http://127.0.0.1:8080/",
+      "resolved": {
+        "email": "#email",
+        "password": "#password",
+        "password_confirm": "#password_confirm",
+        "first_name": "#fname",
+        "last_name": "#lname",
+        "terms": "#terms",
+        "submit": "button[type='submit']"
+      },
+      "missing": [
+        "success",
+        "verified",
+        "error",
+        "captcha"
+      ],
+      "required_missing": [],
+      "error": null,
+      "candidates": [
+        {
+          "field_name": "email",
+          "selector": "#email",
+          "matched": true,
+          "canonical": "#email",
+          "reason": "matched"
+        },
+        {
+          "field_name": "password",
+          "selector": "#password",
+          "matched": true,
+          "canonical": "#password",
+          "reason": "matched"
+        },
+        {
+          "field_name": "password_confirm",
+          "selector": "#password_confirm",
+          "matched": true,
+          "canonical": "#password_confirm",
+          "reason": "matched"
+        },
+        {
+          "field_name": "first_name",
+          "selector": "#fname",
+          "matched": true,
+          "canonical": "#fname",
+          "reason": "matched"
+        },
+        {
+          "field_name": "last_name",
+          "selector": "#lname",
+          "matched": true,
+          "canonical": "#lname",
+          "reason": "matched"
+        },
+        {
+          "field_name": "terms",
+          "selector": "#terms",
+          "matched": true,
+          "canonical": "#terms",
+          "reason": "matched"
+        },
+        {
+          "field_name": "submit",
+          "selector": "[data-testid='signup-submit']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "submit",
+          "selector": "button[type='submit']",
+          "matched": true,
+          "canonical": "button[type='submit']",
+          "reason": "matched"
+        },
+        {
+          "field_name": "success",
+          "selector": "[data-testid='success']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "success",
+          "selector": ".notice.success",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "success",
+          "selector": "text=Kayıt başarılı",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "success",
+          "selector": "//*[contains(@class, 'success')]",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "verified",
+          "selector": "[data-testid='verified']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "verified",
+          "selector": "text=Hesabınız doğrulandı",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "verified",
+          "selector": "//*[contains(text(), 'doğrulandı')]",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "error",
+          "selector": "[data-testid='error']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "error",
+          "selector": ".notice.error",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "error",
+          "selector": "//*[contains(@class, 'error')]",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "captcha",
+          "selector": "iframe[src*='recaptcha']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "captcha",
+          "selector": "iframe[src*='hcaptcha']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "captcha",
+          "selector": "#captcha",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "captcha",
+          "selector": "[data-testid='captcha']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        }
+      ]
+    }
+  ],
+  "flat_map": {
+    "email": "#email",
+    "password": "#password",
+    "password_confirm": "#password_confirm",
+    "first_name": "#fname",
+    "last_name": "#lname",
+    "terms": "#terms"
+  }
+}

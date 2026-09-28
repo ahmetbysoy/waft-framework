@@ -1,0 +1,41 @@
+# ---------------------------------------------------------------------------
+# Yerel test posta sunucusu (Mailpit) — doğrulama e-postası akışını gerçek
+# IMAP + SMTP ile uçtan uca test etmek için.
+#
+#   docker compose -f qa-kit/docker-compose.mail.yml up -d
+#   docker compose -f qa-kit/docker-compose.mail.yml logs -f mailpit
+#   docker compose -f qa-kit/docker-compose.mail.yml down -v
+#
+# Portlar:
+#   1025 -> SMTP   (demo site / staging uygulamanız buraya mail gönderir)
+#   1430 -> IMAP   (WAFT'ın ImapClient'ı buraya bağlanır; 993 yerine 1430)
+#   8025 -> Web UI (gelen kutunuzu tarayıcıda görün: http://127.0.0.1:8025)
+#
+# Mailpit tek kullanıcı kabul eder; kimlik doğrulaması istemez:
+#   IMAP_USER=mailpit  IMAP_PASSWORD=mailpit  IMAP_SSL=false  IMAP_PORT=1430
+# ---------------------------------------------------------------------------
+services:
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: waft-mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1025:1025"   # SMTP
+      - "127.0.0.1:1430:1430"   # IMAP
+      - "127.0.0.1:8025:8025"   # Web UI / REST API
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"    # test ortamı: her kimlik bilgisini kabul et
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+      MP_IMAP_AUTH_ACCEPT_ANY: "1"
+      MP_MAX_MESSAGES: "2000"         # yük testinde kutu dolmasın
+      MP_DATABASE: "/data/mailpit.db" # restart'ta mesajlar korunsun (aşağıdaki volume)
+    volumes:
+      - mailpit-data:/data
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  mailpit-data:

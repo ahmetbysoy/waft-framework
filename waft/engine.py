@@ -1170,6 +1170,9 @@ class ContextEngine:
         try:
             if extracted.link:
                 await self._follow_verification_link(page, row, extracted.link, result)
+                # The link is opened in a new tab which then becomes self.page; the previous
+                # tab may be closed by now, so re-point the local handle before touching it.
+                page = self.page if self.page is not None and not self.page.is_closed() else page
             if extracted.otp:
                 await self._apply_otp(page, row, extracted.otp)
             verification.success = True
@@ -1231,7 +1234,14 @@ class ContextEngine:
 
     async def _apply_otp(self, page: Page, row: TargetRow, otp: str) -> None:
         """Type the OTP into the verification form on the current page."""
-        fields = await self.filler.scan(page)
+        if page.is_closed():
+            self.log.debug("OTP candidate found but the page is already closed - skipping OTP entry")
+            return
+        try:
+            fields = await self.filler.scan(page)
+        except PlaywrightError as exc:
+            self.log.debug("OTP entry skipped (page scan failed): %s", exc)
+            return
         otp_field = None
         if row.verification_otp_field:
             otp_field = next(
