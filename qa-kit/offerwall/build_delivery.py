@@ -32,6 +32,7 @@ from typing import Final, Optional, Sequence
 KIT: Final[Path] = Path(__file__).resolve().parent
 DOC: Final[Path] = KIT / "DELIVERY.md"
 
+ARTEFAKT1_HEADING: Final[str] = "## ARTEFAKT 1 —"
 ARTEFAKT4_HEADING: Final[str] = "## ARTEFAKT 4 —"
 S56_HEADING: Final[str] = "### 5.6 Tek komut"
 SECTION6_HEADING: Final[str] = "## 6. EK ARTEFAKT"
@@ -42,12 +43,16 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def replace_embedded_source(document: str, heading: str, source: str, *, label: str) -> str:
-    """Replace the first ```python fenced block that follows *heading*."""
+def replace_embedded_source(document: str, heading: str, source: str, *, label: str, skip: int = 0) -> str:
+    """Replace the ```python fenced block that follows *heading* (``skip`` blocks are ignored)."""
     start = document.find(heading)
     if start == -1:
         raise SystemExit(f"✖ heading not found: {heading}")
     fence_open = document.find("\n```python\n", start)
+    for _ in range(skip):
+        if fence_open == -1:
+            raise SystemExit(f"✖ fewer than {skip + 1} python fences after {heading}")
+        fence_open = document.find("\n```python\n", fence_open + 10)
     if fence_open == -1:
         raise SystemExit(f"✖ no ```python fence after {heading}")
     fence_close = document.find("\n```\n", fence_open + 10)
@@ -65,6 +70,11 @@ def build() -> str:
     postback = read(KIT / "postback_receiver.py").strip()
     sh = read(KIT / "sandbox_up.sh").strip()
 
+    account_pool = read(KIT / "account_pool.py").strip()
+    # ARTEFAKT 1 embeds a short ``import json`` snippet first, then the whole account_pool.py.
+    document = replace_embedded_source(
+        document, ARTEFAKT1_HEADING, account_pool, label="ARTEFAKT 1 (account_pool.py)", skip=1
+    )
     document = replace_embedded_source(document, ARTEFAKT4_HEADING, runner, label="ARTEFAKT 4 (run_offerwall.py)")
 
     s56 = f'''{S56_HEADING} — tek komutla yerel koşu (hesap dosyası gerekmez)

@@ -501,7 +501,84 @@ Kendi aracımı kitin kendi sayfasında koşturunca 27 hata verdi — üçü de 
 3. Anket satırlarına `password_confirm` uyarısı → şablon yeniden kullanımı yüzünden yanlış.
    Düzeltme: kural kayıt satırlarıyla sınırlandı (`survey`/`anket` içeren satırlar hariç).
 
-## 13. Bir sonraki adım
+## 13. `import_credentials.py` — kimlik dosyası yapıştırma artıklarını onarır
+
+Gönderdiğin kimlik dosyası bir sohbetten kopyalandığı için Markdown linklerine dönüşmüştü:
+
+```json
+{"email": "[hesap1@gmail.com](mailto:hesap1@gmail.com)",
+ "imap_host": "[imap.gmail.com](http://imap.gmail.com)", "imap_port": 993}
+```
+
+Eski havuz kontrolü `"@" in email` idi → **bu dosyayı kabul ediyordu**. Sonucu: tarayıcı kayıt
+formuna `[hesap1@gmail.com](mailto:hesap1@gmail.com)` yazar (geçersiz adres), IMAP da
+`[imap.gmail.com](http://imap.gmail.com)` adresine bağlanmaya çalışır. İkisi de çok sonra,
+"site bozuk" gibi görünen hatalarla ortaya çıkar.
+
+İki katmanlı çözüm:
+
+**1. Havuz artık katı.** `account_pool.py` yapıştırma artığı içeren e-posta/host'u reddeder:
+
+```text
+$ python3 qa-kit/offerwall/account_pool.py pasted_credentials.json
+✖ e-mail looks like pasted Markdown/URL, not an address: '[hesap1@gmail.com](mailto:hesap1@gmail.com)'
+  — repair it with: python3 qa-kit/offerwall/import_credentials.py --in <file> --out credentials.json
+exit=2
+```
+
+**2. `import_credentials.py` onarır.** Gerçek çıktı (senin dosyanla):
+
+```text
+$ python3 qa-kit/offerwall/import_credentials.py --in pasted_credentials.json --check
+→ pasted_credentials.json: 2 hesap (yazılmadı)
+  🔧 [hesap1@gmail.com] email temizlendi: '[hesap1@gmail.com](mailto:hesap1@gmail.com)' → 'hesap1@gmail.com'
+  🔧 [hesap1@gmail.com] imap_host temizlendi: '[imap.gmail.com](http://imap.gmail.com)' → 'imap.gmail.com'
+  🔧 [hesap2@gmail.com] … (aynı iki düzeltme)
+  ✖ [hesap1@gmail.com] parola yer tutucu: '16_haneli_uygulama_sifresi_buray' — Gmail'de 2 adımlı
+                        doğrulamayı açıp 16 karakterlik Uygulama Şifresi üretin
+  ✖ [hesap2@gmail.com] parola yer tutucu: … (aynı)
+  ⚠ 2 hesap, 10 context → hesaplar sırayla tekrar kullanılacak (ctx-02 yine ilk hesaba döner).
+    'Her context'e ayrı kimlik' iddiası 2 hesapla geçerli DEĞİL; 10 ayrı hesap gerekir.
+exit=1
+```
+
+`--allow-placeholders` ile şablon amaçlı yazılabilir; yazım **0600** izniyle yapılır ve dosya
+anında yeniden yüklenip doğrulanır:
+
+```bash
+python3 qa-kit/offerwall/import_credentials.py --in pasted.json --out credentials.json \
+    --require-gmail --min-accounts 10
+```
+
+### 13.1 İçe aktarıcının düzelttiği diğer yapıştırma biçimleri
+
+| Girdi | Sonuç |
+|---|---|
+| `[a@gmail.com](mailto:a@gmail.com)` | `a@gmail.com` |
+| `<a@gmail.com>` / `` `a@gmail.com` `` / `"a@gmail.com"` | `a@gmail.com` |
+| `mailto:a@gmail.com` / `http://imap.gmail.com` | şema atılır |
+| `hesap\_1@gmail.com` (Markdown escape) | `hesap_1@gmail.com` |
+| `hesap 1@gmail.com` (içeride boşluk) | `hesap1@gmail.com` |
+| `a@gmail.com,` (JSON artığı) | `a@gmail.com` |
+| `"imap_port": "993"` | `993` (int), aralık kontrolü ile |
+| `_comment` açıklama girdisi | atlanır (hesap sayılmaz) |
+
+### 13.2 Yer tutucu parola tespiti
+
+`PLACEHOLDER_PASSWORDS` tam eşleşme listesine ek olarak `looks_like_placeholder()` artık şu
+işaretleri de yakalar: `buraya`, `uygulama_sifresi`, `app_password`, `your_`, `example`, `xxxx`,
+`****`, `<`, `>`. Havuzda **uyarı**, içe aktarıcıda **hata** (exit 1) seviyesindedir — çünkü
+doldurulmamış bir parolayla her IMAP login'i başarısız olur ve hata Google'ın sorunu gibi görünür.
+
+### 13.3 Neden 2 hesap 10 context'e yetmez
+
+`for_context(i) = accounts[i % n]` olduğu için 2 hesapla 10 context **5 kez aynı kimliği** kullanır:
+ctx-00/02/04/06/08 aynı hesap. Bu, "10 izole kullanıcı" iddiasını geçersiz kılar (aynı posta
+kutusu, aynı oturum geçmişi). Hem `import_credentials.py` hem `validate_targets.py` bunu uyarır.
+
+Testler: `tests/test_offerwall_import_credentials.py` (33 test) — toplam suite **145/145**.
+
+## 14. Bir sonraki adım
 
 Kendi staging'inizin host'unu verin: seçicileri gerçek alanlarla günceller, `authorized_hosts.txt`'e
 ekler ve koşuyu orada birlikte doğrularız. Partner entegrasyonuysa postback doğrulamasını

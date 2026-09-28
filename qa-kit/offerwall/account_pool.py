@@ -37,6 +37,7 @@ Usage::
 from __future__ import annotations
 
 import json
+import re
 import logging
 import sys
 from dataclasses import dataclass, field
@@ -46,6 +47,18 @@ from typing import Any, Final, Iterator, Optional, Sequence
 logger = logging.getLogger("waft.offerwall.accounts")
 
 #: Placeholder values that mean "you forgot to fill the file in".
+#: Strict-ish address shape. A missing ``@`` was not enough: pasting credentials out of a chat
+#: turns ``hesap1@gmail.com`` into ``[hesap1@gmail.com](mailto:hesap1@gmail.com)``, which contains
+#: an ``@`` - the pool accepted it silently, the browser typed the whole Markdown link into the
+#: sign-up form and IMAP then tried to connect to ``[imap.gmail.com](http://imap.gmail.com)``.
+EMAIL_RE: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?)+$")
+
+#: Hostname or IPv4 literal - no scheme, no brackets, no Markdown leftovers.
+HOST_RE: Final[re.Pattern[str]] = re.compile(r"^(?:(?:[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?)\.)+[A-Za-z]{2,}$|^\d{1,3}(\.\d{1,3}){3}$")
+
+#: Substrings that betray a Markdown link / URL paste rather than a value.
+PASTE_ARTIFACT_MARKERS: Final[tuple[str, ...]] = ("](", "mailto:", "http://", "https://", "`", "<", ">")
+
 PLACEHOLDER_PASSWORDS: Final[frozenset[str]] = frozenset(
     {
         "",
@@ -59,6 +72,34 @@ PLACEHOLDER_PASSWORDS: Final[frozenset[str]] = frozenset(
         "<uygulama-sifresi>",
     }
 )
+
+
+#: Substrings that betray a not-yet-filled password. ``"16_haneli_uygulama_sifresi_buraya"`` is not
+#: in the exact set above, yet shipping it would make every IMAP login fail with an auth error
+#: that looks like a Google problem. Substring matching is deliberately broad: this is a warning
+#: in the pool and a blocking problem in the importer, never a silent pass.
+PLACEHOLDER_PASSWORD_MARKERS: Final[tuple[str, ...]] = (
+    "buraya",
+    "uygulama_sifresi",
+    "uygulama-sifresi",
+    "app_password",
+    "app-password",
+    "your_",
+    "senin_",
+    "example",
+    "xxxx",
+    "****",
+    "<",
+    ">",
+)
+
+
+def looks_like_placeholder(password: str) -> bool:
+    """True when *password* is empty, in the exact placeholder set, or matches a known marker."""
+    text = (password or "").strip().lower()
+    if text in PLACEHOLDER_PASSWORDS:
+        return True
+    return any(marker in text for marker in PLACEHOLDER_PASSWORD_MARKERS)
 
 
 class AccountPoolError(RuntimeError):
@@ -230,9 +271,21 @@ class AccountPool:
             raise AccountPoolError("all accounts are disabled (enabled=false)")
 
         for account in usable:
-            if "@" not in account.email or account.email.startswith("@") or account.email.endswith("@"):
+            if any(marker in account.email for marker in PASTE_ARTIFACT_MARKERS):
+                raise AccountPoolError(
+                    f"e-mail looks like pasted Markdown/URL, not an address: {account.email!r} — "
+                    f"repair it with: python3 qa-kit/offerwall/import_credentials.py --in <file> --out credentials.json"
+                )
+            if not EMAIL_RE.match(account.email):
                 raise AccountPoolError(f"malformed e-mail address: {account.email!r}")
-            if account.password.strip().lower() in PLACEHOLDER_PASSWORDS:
+            if any(marker in account.imap_host for marker in PASTE_ARTIFACT_MARKERS) or not HOST_RE.match(account.imap_host):
+                raise AccountPoolError(
+                    f"malformed IMAP host for {account.email}: {account.imap_host!r} "
+                    f"(a bare hostname is expected, e.g. imap.gmail.com)"
+                )
+            if not 1 <= int(account.imap_port) <= 65535:
+                raise AccountPoolError(f"invalid IMAP port for {account.email}: {account.imap_port}")
+            if looks_like_placeholder(account.password):
                 warnings.append(
                     f"{account.email}: password looks like a placeholder - put a Gmail APP PASSWORD "
                     "(16 chars, 2-step verification) into the credential file"
