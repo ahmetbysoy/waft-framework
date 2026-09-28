@@ -1,0 +1,9 @@
+{
+  "email": "#register-email",
+  "password": "#register-password",
+  "password_confirm": "#register-password-confirm",
+  "first_name": "#first-name",
+  "last_name": "#last-name",
+  "country": "#country",
+  "terms": "#terms"
+}

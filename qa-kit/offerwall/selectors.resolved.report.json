@@ -1,0 +1,289 @@
+{
+  "catalogue": "qa-kit/offerwall/selectors_offerwall.json",
+  "data": "qa-kit/offerwall/targets_offerwall.xlsx",
+  "resolved_file": "qa-kit/offerwall/selectors.resolved.json",
+  "hosts": [
+    {
+      "host": "127.0.0.1:8090",
+      "page_url": "http://127.0.0.1:8090/register",
+      "resolved": {
+        "email": "#register-email",
+        "password": "#register-password",
+        "password_confirm": "#register-password-confirm",
+        "first_name": "#first-name",
+        "last_name": "#last-name",
+        "country": "#country",
+        "terms": "#terms",
+        "submit": "#register-submit"
+      },
+      "missing": [
+        "success",
+        "verified",
+        "error",
+        "captcha",
+        "survey_frequency",
+        "survey_category",
+        "survey_notes",
+        "survey_rating"
+      ],
+      "required_missing": [],
+      "error": null,
+      "candidates": [
+        {
+          "field_name": "email",
+          "selector": "#register-email",
+          "matched": true,
+          "canonical": "#register-email",
+          "reason": "matched"
+        },
+        {
+          "field_name": "password",
+          "selector": "#register-password",
+          "matched": true,
+          "canonical": "#register-password",
+          "reason": "matched"
+        },
+        {
+          "field_name": "password_confirm",
+          "selector": "#register-password-confirm",
+          "matched": true,
+          "canonical": "#register-password-confirm",
+          "reason": "matched"
+        },
+        {
+          "field_name": "first_name",
+          "selector": "#first-name",
+          "matched": true,
+          "canonical": "#first-name",
+          "reason": "matched"
+        },
+        {
+          "field_name": "last_name",
+          "selector": "#last-name",
+          "matched": true,
+          "canonical": "#last-name",
+          "reason": "matched"
+        },
+        {
+          "field_name": "country",
+          "selector": "#country",
+          "matched": true,
+          "canonical": "#country",
+          "reason": "matched"
+        },
+        {
+          "field_name": "terms",
+          "selector": "#terms",
+          "matched": true,
+          "canonical": "#terms",
+          "reason": "matched"
+        },
+        {
+          "field_name": "submit",
+          "selector": "[data-testid='register-submit']",
+          "matched": true,
+          "canonical": "#register-submit",
+          "reason": "matched"
+        },
+        {
+          "field_name": "success",
+          "selector": "[data-testid='success']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "success",
+          "selector": "[data-testid='survey-complete']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "success",
+          "selector": ".notice.success",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "success",
+          "selector": "//*[contains(@class,'notice') and contains(@class,'success')]",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "verified",
+          "selector": "[data-testid='verified']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "verified",
+          "selector": ".notice.success",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "verified",
+          "selector": "//*[contains(text(), 'doğrulandı')]",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "error",
+          "selector": "[data-testid='error']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "error",
+          "selector": ".notice.error",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "error",
+          "selector": "//*[contains(@class,'notice') and contains(@class,'error')]",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "captcha",
+          "selector": "iframe[src*='recaptcha']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "captcha",
+          "selector": ".g-recaptcha",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "captcha",
+          "selector": "#captcha",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "captcha",
+          "selector": "[data-testid='captcha']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "captcha",
+          "selector": "iframe[src*='hcaptcha']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "captcha",
+          "selector": "iframe[src*='turnstile']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "survey_frequency",
+          "selector": "input[name='frequency'][value='weekly']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "survey_frequency",
+          "selector": "//input[@name='frequency'][@value='weekly']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "survey_category",
+          "selector": "#favourite-category",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "survey_category",
+          "selector": "select[name='category']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "survey_category",
+          "selector": "//select[@name='category']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "survey_notes",
+          "selector": "#comments",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "survey_notes",
+          "selector": "textarea[name='comments']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "survey_notes",
+          "selector": "//textarea",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "survey_rating",
+          "selector": "#rating",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "survey_rating",
+          "selector": "select[name='rating']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        },
+        {
+          "field_name": "survey_rating",
+          "selector": "//select[@name='rating']",
+          "matched": false,
+          "canonical": null,
+          "reason": "no element"
+        }
+      ]
+    }
+  ],
+  "flat_map": {
+    "email": "#register-email",
+    "password": "#register-password",
+    "password_confirm": "#register-password-confirm",
+    "first_name": "#first-name",
+    "last_name": "#last-name",
+    "country": "#country",
+    "terms": "#terms"
+  }
+}

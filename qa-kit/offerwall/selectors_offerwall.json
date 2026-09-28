@@ -1,0 +1,197 @@
+{
+  "_comment": [
+    "Offerwall/survey form selector catalogue for the WAFT offerwall kit.",
+    "Each field holds an ORDERED fallback chain (CSS first, then XPath, at least two entries).",
+    "selector_resolver.py probes the chain in a real browser and writes selectors.resolved.json",
+    "({data_key: selector}) which is passed to WAFT via --selectors.",
+    "Blocks are merged: host:port (exact) wins over host (exact) wins over '*'.",
+    "Add a block for YOUR host under 'hosts' - the '*' block is a generic safety net for modern",
+    "sign-up forms (id/name/autocomplete/aria based, no vendor-specific markup)."
+  ],
+  "version": 1,
+  "defaults": {
+    "probe_timeout_ms": 10000,
+    "require_visible": true
+  },
+  "hosts": {
+    "127.0.0.1:8090": {
+      "_comment": "Bundled offerwall sandbox (examples/offerwall_sandbox.py).",
+      "email": [
+        "#register-email",
+        "input[name='email']",
+        "input[type='email']",
+        "[autocomplete='email']",
+        "//input[@type='email']"
+      ],
+      "password": [
+        "#register-password",
+        "input[name='password']",
+        "input[type='password']",
+        "[autocomplete='new-password']",
+        "//input[@type='password']"
+      ],
+      "password_confirm": [
+        "#register-password-confirm",
+        "input[name='password_confirm']",
+        "input[name='password2']",
+        "(//input[@type='password'])[2]"
+      ],
+      "first_name": [
+        "#first-name",
+        "input[name='first_name']",
+        "[autocomplete='given-name']",
+        "//label[contains(., 'Ad')]/following::input[1]"
+      ],
+      "last_name": [
+        "#last-name",
+        "input[name='last_name']",
+        "[autocomplete='family-name']",
+        "//label[contains(., 'Soyad')]/following::input[1]"
+      ],
+      "country": [
+        "#country",
+        "select[name='country']",
+        "//select[@name='country']"
+      ],
+      "terms": [
+        "#terms",
+        "input[name='terms']",
+        "input[type='checkbox'][required]",
+        "//input[@type='checkbox'][@required]"
+      ],
+      "survey_frequency": [
+        "input[name='frequency'][value='weekly']",
+        "//input[@name='frequency'][@value='weekly']"
+      ],
+      "survey_category": [
+        "#favourite-category",
+        "select[name='category']",
+        "//select[@name='category']"
+      ],
+      "survey_notes": [
+        "#comments",
+        "textarea[name='comments']",
+        "//textarea"
+      ],
+      "survey_rating": [
+        "#rating",
+        "select[name='rating']",
+        "//select[@name='rating']"
+      ],
+      "submit": [
+        "[data-testid='register-submit']",
+        "[data-testid='survey-submit']",
+        "button[type='submit']",
+        "input[type='submit']",
+        "//button[@type='submit']"
+      ],
+      "success": [
+        "[data-testid='success']",
+        "[data-testid='survey-complete']",
+        ".notice.success",
+        "//*[contains(@class,'notice') and contains(@class,'success')]"
+      ],
+      "verified": [
+        "[data-testid='verified']",
+        ".notice.success",
+        "//*[contains(text(), 'doğrulandı')]"
+      ],
+      "error": [
+        "[data-testid='error']",
+        ".notice.error",
+        "//*[contains(@class,'notice') and contains(@class,'error')]"
+      ],
+      "captcha": [
+        "iframe[src*='recaptcha']",
+        ".g-recaptcha",
+        "#captcha",
+        "[data-testid='captcha']",
+        "iframe[src*='hcaptcha']",
+        "iframe[src*='turnstile']"
+      ]
+    },
+    "*": {
+      "_comment": "Generic fallbacks so the kit still works on 'your own app' without a host block.",
+      "email": [
+        "input[type='email']",
+        "#email",
+        "input[name='email']",
+        "input[name='username']",
+        "[autocomplete='email']",
+        "//input[contains(@id,'email') or contains(@name,'email')]"
+      ],
+      "password": [
+        "input[type='password']",
+        "#password",
+        "input[name='password']",
+        "[autocomplete='new-password']",
+        "//input[@type='password']"
+      ],
+      "password_confirm": [
+        "input[name='password_confirm']",
+        "input[name='password2']",
+        "input[name='confirm_password']",
+        "(//input[@type='password'])[2]"
+      ],
+      "first_name": [
+        "input[name='first_name']",
+        "input[name='firstName']",
+        "[autocomplete='given-name']",
+        "input[name='name']"
+      ],
+      "last_name": [
+        "input[name='last_name']",
+        "input[name='lastName']",
+        "[autocomplete='family-name']",
+        "input[name='surname']"
+      ],
+      "country": [
+        "select[name='country']",
+        "select[name='country_code']",
+        "#country"
+      ],
+      "terms": [
+        "input[type='checkbox'][required]",
+        "input[name='terms']",
+        "input[name='consent']",
+        "#terms"
+      ],
+      "submit": [
+        "button[type='submit']",
+        "input[type='submit']",
+        "[data-testid='submit']",
+        "button:has-text('Gönder')",
+        "button:has-text('Submit')",
+        "//button[@type='submit']"
+      ],
+      "success": [
+        "[data-testid='success']",
+        ".alert-success",
+        ".notice.success",
+        "[role='alert'].success",
+        "//*[contains(@class,'success')]"
+      ],
+      "verified": [
+        "[data-testid='verified']",
+        "text=doğrulandı",
+        "text=verified",
+        "//*[contains(text(),'verify')]"
+      ],
+      "error": [
+        "[data-testid='error']",
+        ".alert-danger",
+        ".notice.error",
+        "[role='alert'].error",
+        "//*[contains(@class,'error')]"
+      ],
+      "captcha": [
+        "iframe[src*='recaptcha']",
+        "iframe[src*='hcaptcha']",
+        "iframe[src*='turnstile']",
+        ".g-recaptcha",
+        ".h-captcha",
+        "[data-testid='captcha']"
+      ]
+    }
+  }
+}

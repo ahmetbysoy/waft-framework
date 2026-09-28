@@ -36,3 +36,10 @@ htmlcov/
 Thumbs.db
 .idea/
 .vscode/
+
+# --- test credentials (never commit real account pools) ---------------------
+credentials.json
+credentials.*.json
+!qa-kit/offerwall/credentials.example.json
+!qa-kit/offerwall/credentials.sandbox.json
+proxies.txt
