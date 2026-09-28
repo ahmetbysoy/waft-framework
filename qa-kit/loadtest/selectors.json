@@ -1,0 +1,116 @@
+{
+  "_comment": [
+    "SEÇİCİ KATALOĞU — her alan için SIRALI yedek zinciri (fallback chain).",
+    "",
+    "Kurallar:",
+    "  * Her zincir en az 3 seçici içerir (CSS önce, sonra XPath).",
+    "  * Zincir sırayla denenir: ilk GÖRÜNÜR ve sayı > 0 olan seçici kazanır; kazanan",
+    "    seçici steps.jsonl içine 'selector_used' olarak yazılır (hangi seçicinin tuttuğunu",
+    "    bilmek, kendi staging'inizdeki markup değişimini erken yakalamanızı sağlar).",
+    "  * Metin tabanlı seçiciler (:has-text) yalnızca TIKLANABİLİR öğeler için kullanılır;",
+    "    input alanlarını doldurmak için kullanılamaz (Playwright kısıtı).",
+    "  * '_' ile başlayan anahtarlar yorumdur, katalog dışında bırakılır.",
+    "",
+    "Eşleme kuralı (run_load_test.py): test_targets.json içindeki form_fields anahtarı 'email'",
+    "ise önce 'email_input' aranır, yoksa 'email' anahtarına düşülür. Aynı kural first_name,",
+    "last_name, password, password_confirm, country, terms için de geçerlidir.",
+    "",
+    "Alan tipi zincirin SON EKİNDEN okunur:",
+    "  *_input    -> locator.fill(value)",
+    "  *_checkbox -> locator.check()",
+    "  *_radio    -> locator.check()",
+    "  *_select   -> locator.select_option(value)",
+    "  diğerleri  -> locator.fill(value)",
+    "",
+    "İlk blok yerel sandbox (127.0.0.1:8090) ile birebir uyumludur; ondan sonraki seçiciler",
+    "kendi staging'iniz için genel amaçlı yedeklerdir (id/name/autocomplete/aria tabanlı)."
+  ],
+  "version": 1,
+  "defaults": {
+    "probe_timeout_ms": 4000,
+    "require_visible": true
+  },
+  "fields": {
+    "email_input": [
+      "#register-email",
+      "input[type='email']",
+      "input[name='email']",
+      "[autocomplete='email']",
+      "//input[@type='email']"
+    ],
+    "password_input": [
+      "#register-password",
+      "input[type='password']",
+      "input[name='password']",
+      "[autocomplete='new-password']",
+      "//input[@type='password']"
+    ],
+    "password_confirm_input": [
+      "#register-password-confirm",
+      "input[name='password_confirm']",
+      "input[name='password2']",
+      "input[type='password'][required]",
+      "(//input[@type='password'])[2]"
+    ],
+    "first_name_input": [
+      "#first-name",
+      "input[name='first_name']",
+      "input[name='firstName']",
+      "[autocomplete='given-name']",
+      "//label[contains(., 'Ad')]/following::input[1]"
+    ],
+    "last_name_input": [
+      "#last-name",
+      "input[name='last_name']",
+      "input[name='lastName']",
+      "[autocomplete='family-name']",
+      "//label[contains(., 'Soyad')]/following::input[1]"
+    ],
+    "country_select": [
+      "#country",
+      "select[name='country']",
+      "select[autocomplete='country']",
+      "select[aria-label*='Ülke' i]",
+      "//select[@name='country']"
+    ],
+    "terms_checkbox": [
+      "#terms",
+      "input[name='terms']",
+      "input[type='checkbox'][required]",
+      "input[type='checkbox'][name*='kvkk' i]",
+      "//input[@type='checkbox']"
+    ],
+    "submit_button": [
+      "[data-testid='register-submit']",
+      "#register-submit",
+      "button[type='submit']",
+      "input[type='submit']",
+      "button:has-text('Hesap oluştur')",
+      "button:has-text('Kayıt ol')",
+      "button:has-text('Submit')"
+    ],
+    "success": [
+      "[data-testid='success']",
+      "[data-testid='verified']",
+      ".notice.success",
+      "text=/ho[şs] geldin|success|verified|doğrulandı/i"
+    ],
+    "error": [
+      "[data-testid='error']",
+      ".notice.error",
+      "[role='alert']",
+      "[aria-live='assertive']",
+      "text=/hata|error|geçersiz|invalid/i"
+    ],
+    "captcha_frame": [
+      "[data-testid='captcha']",
+      "div.g-recaptcha",
+      "iframe[src*='recaptcha']",
+      "iframe[src*='hcaptcha']",
+      "iframe[src*='turnstile']",
+      "iframe[title*='captcha' i]",
+      "[id*='captcha' i]",
+      "[class*='captcha' i]"
+    ]
+  }
+}

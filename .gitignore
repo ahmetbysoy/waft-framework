@@ -42,4 +42,8 @@ credentials.json
 credentials.*.json
 !qa-kit/offerwall/credentials.example.json
 !qa-kit/offerwall/credentials.sandbox.json
+# loadtest kiti: şablon ve sandbox havuzu depoda kalır, DOLDURULMUŞ kopyalar asla
+credentials_pool*.json
+!qa-kit/loadtest/credentials_pool.json
+!qa-kit/loadtest/credentials_pool.sandbox.json
 proxies.txt

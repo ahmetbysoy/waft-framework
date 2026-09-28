@@ -70,6 +70,9 @@ jobs:
           --in qa-kit/offerwall/credentials.example.json
           --check --allow-placeholders --min-accounts 10
 
+      - name: Yük testi kiti doğrulaması (tarayıcısız, --check)
+        run: python qa-kit/loadtest/run_load_test.py --sandbox --check
+
       - name: DELIVERY.md ↔ kaynaklar drift kapısı
         run: python qa-kit/offerwall/build_delivery.py --check
 
@@ -110,7 +113,12 @@ jobs:
         run: python -m pytest -q
 
       - name: Uçtan uca koşu (sandbox + devmail, kapsam kapısı açık)
-        run: bash qa-kit/offerwall/sandbox_up.sh --no-color
+        run: bash qa-kit/offerwall/sandbox_up.sh --keep --no-color
+
+      - name: Yük testi kiti (10 bağlam, yerel sandbox, CAPTCHA skip politikası)
+        run: >-
+          python qa-kit/loadtest/run_load_test.py --sandbox
+          --contexts 10 --concurrency 5 --no-screenshots --no-color
 
       - name: Koşu özeti (job summary)
         if: always()

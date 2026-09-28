@@ -750,3 +750,123 @@ Kendi sistemlerine karşı çalışacaksa, doğru araç seçimi:
 Kendi staging'inizin host'unu verin: seçicileri gerçek alanlarla günceller, `authorized_hosts.txt`'e
 ekler ve koşuyu orada birlikte doğrularız. Partner entegrasyonuysa postback doğrulamasını
 (`postback_receiver.py --serve` + imza) akışa bağlarız.
+
+## 19. Çok bağlamlı yük testi kiti (`qa-kit/loadtest`) + bulunan 1 gerçek bug
+
+Bu turda istenen şey kapsam kilidinin (§14) tam içinde: **kendi staging'inize** karşı, 10 eşzamanlı
+kullanıcı, `TARGET_URL` ortam değişkeninden gelen hedef, CAPTCHA **çözmeyen** (yalnızca tespit edip
+`CAPTCHA_DETECTED` olarak loglayan) bir koşu. Kit `qa-kit/loadtest/` altında:
+
+| Dosya | Rol |
+|---|---|
+| `credentials_pool.json` | 10 hesaplık **şablon** (`app_password`, `imap_host`, `imap_port`) — doldurulmayı bekler |
+| `credentials_pool.sandbox.json` | Yerel devmail hesapları (127.0.0.1:1430, TLS yok) |
+| `test_targets.json` | `{TARGET_URL}/register` + `{email}`/`{password}`, `email-verify`, konu regex'i |
+| `test_targets.sandbox.json` | Yerel sandbox: `kayit-formu` + `captcha-drill` (skip yolunu kanıtlar) |
+| `selectors.json` | Alan başına **en az 3** yedekli CSS/XPath zinciri (+`success`/`error`/`captcha_frame`) |
+| `run_load_test.py` | Yürütücü: N context, hesap başına 1 context, `page.on` ağ kaydı, IMAP doğrulama, artefaktlar |
+
+### 19.1 Tasarım kararları (ve neden)
+
+* **Hedef yalnızca `TARGET_URL`'den gelir.** Betikte gömülü hiçbir adres yoktur; değişken boşsa
+  tarayıcı açılmadan `exit 2` ile durur (kabul kriteri 1).
+* **Hesap benzersizliği zorlanır.** Context *i* → hesap *i*. Havuzda yeterli hesap yoksa koşu
+  başlamaz; `--allow-account-reuse` yalnızca açıkça istendiğinde devreye girer ve uyarır (iki
+  context aynı kutuyu dinlerse doğrulama linki yarışır).
+* **CAPTCHA politikası: `skip`.** Tespit edilirse adım `CAPTCHA_DETECTED` olarak loglanır, **hata
+  fırlatılmaz**, o context güvenle kapatılır, diğerleri devam eder; exit kodu 0 kalır.
+  `--fail-on-captcha` ile bunu kırmızı build'e çevirebilirsiniz.
+* **Scope kapısı aynen yeniden kullanılır** (`run_regression.py`'den `Scope` + sert 3. parti
+  block-list). `timewall.io` gibi bir host denendiğinde koşu daha tarayıcı açılmadan durur:
+  `✖ scope: third-party offerwall / micro-task platform(s) are out of scope … timewall.io`.
+* **Sırlar maskelenir.** Loglarda parola `dev***(7 chars)` biçiminde; `network_log.jsonl` içinde
+  `token=`, `code=`, `password=` gibi sorgu **değerleri** `***` olur — doğrulama linki ekranda
+  görünür ama tek kullanımlık token yazılmaz.
+* **Artefaktlar:** `artifacts/loadtest/<run_id>/` → `network_log.jsonl` (method/url/status/süre),
+  `endpoints.json` (method+path özeti, p50), `steps.jsonl` (her adımda **hangi seçici tuttu**),
+  `summary.json`, `report.txt`, `screenshots/` (adım başına PNG), `loadtest.log`.
+
+### 19.2 Doğrulanmış koşular (bu repoda, bu makinede)
+
+Yerel sandbox (`devmail` 1025/1430 + `offerwall_sandbox.py` 8090) ile:
+
+```text
+# TEMİZ KOŞU — 10 bağlam / 10 paralel / yalnızca kayıt akışı
+Bağlamlar : 10 (ok 10 | captcha 0 | hatalı 0)
+Hedefler  : 10 (ok=10)      Doğrulama: 10 ok / 0 failed
+Ağ trafiği: 40 yanıt | 0 başarısız istek | 200×40
+  GET  /register      10 istek | 200×10 | p50 27.92 ms
+  POST /register      10 istek | 200×10 | p50 27.77 ms
+  GET  /verify        10 istek | 200×10 | p50  3.39 ms
+→ exit code: 0
+
+# CAPTCHA DRILL — /captcha satırı dahil (skip politikası kanıtı)
+Bağlamlar : 10 (ok 0 | captcha 10 | hatalı 0)
+Hedefler  : 20 (ok=10, captcha_detected=10)   Doğrulama: 10 ok / 0 failed
+→ captcha-drill: captcha_detected — CAPTCHA visible on landing page ([data-testid='captcha'])
+→ exit code: 0   (test CAPTCHA_DETECTED loglandı, hata fırlatılmadı, bağlam kapatıldı)
+```
+
+Olumsuz yollar da ölçüldü: `TARGET_URL` yok → exit 2; `TARGET_URL=https://timewall.io` → exit 2
+(scope); şablon havuz (yer tutucu parolalar) → exit 2 + doldurma yönergesi.
+
+`steps.jsonl` kanıtı: her alan için **hangi** seçicinin tuttuğu yazılır —
+`field_filled field=email selector=#register-email kind=fill`. Markup değişirse hangi zincirin
+koptuğunu buradan görürsünüz. `context_ready` satırı `webdriver=False` bildirir: stealth init
+script'i gerçekten uygulandı.
+
+### 19.3 Bu turda bulunan GERÇEK bug: `sandbox_up.sh` passthrough
+
+`bash qa-kit/offerwall/sandbox_up.sh` (argümansız) **her seferinde** exit 2 veriyordu:
+
+```text
+run_offerwall.py: error: unrecognized arguments:
+[sandbox_up] run_offerwall.py çıkış kodu: 2
+```
+
+Sebep, §15'te eklenen passthrough düzeltmesindeki bash tuzağı:
+
+```bash
+# HATALI: boş dizide `:-` TEK bir boş argüman üretir → argparse "unrecognized arguments: "
+"${PY}" run_offerwall.py --sandbox --contexts "$C" --concurrency "$N" "${PASSTHROUGH[@]:-}"
+```
+
+Düzeltme (komut dizisi kuralı — dizi yalnızca doluysa komuta katılır):
+
+```bash
+RUN_ARGS=("${PY}" "${HERE}/run_offerwall.py" --sandbox --contexts "${CONTEXTS}" --concurrency "${CONCURRENCY}")
+if (( ${#PASSTHROUGH[@]} )); then RUN_ARGS+=("${PASSTHROUGH[@]}"); fi
+"${RUN_ARGS[@]}"
+```
+
+Bu bug, "tek komutla sandbox" akışını tamamen kırıyordu ve birim testleri değil **gerçek kullanım**
+yakaladı: yük testi kitini ayakta olan sunuculara bağlamak için script'i çalıştırdığımda ortaya
+çıktı. Ders: shell'de `"${array[@]:-}"` (boş dizi yerine boş **argüman**) tuzağı; dizi genişletmesi
+koşullu eklenir.
+
+### 19.4 Bu turda kendi kodumda bulup düzelttiğim hatalar (dürüst liste)
+
+1. **`sandbox_up.sh` argümansız çağrıda exit 2** (yukarıda §19.3) — `"${PASSTHROUGH[@]:-}"`
+   boş dizide tek bir boş argüman üretiyordu. Gerçek kullanım yakaladı; düzeltildi ve
+   `bash qa-kit/offerwall/sandbox_up.sh --keep` yeniden **exit 0 / 60-60 hedef** ile doğrulandı.
+2. **`--contexts` yok sayılıyordu.** İlk sürümde bağlam sayısı her zaman `len(accounts)` idi;
+   `--contexts 2` verildiğinde 10 bağlam koşuyordu. Artık `planned_context_count()` = en fazla
+   `min(--contexts, hesap sayısı)`; `tests/test_loadtest_kit.py` bunu regresyon olarak pinliyor
+   (2 → 2, 25 → 10, 0 → 1).
+3. **Chromium kurulum hatası okunamıyordu.** Tarayıcı ikilisi eksik/deps eksik olduğunda
+   Playwright'ın `TargetClosedError` yığını basılıyordu; artık mesaj teşhis edilip
+   `→ sudo python3 -m playwright install-deps chromium` / `→ playwright install --with-deps`
+   yönergesine çevriliyor ve **exit 2** dönüyor.
+4. **Alan adı → seçici anahtarı eşlemesi.** İlk sürüm yalnızca `email` → `email_input` bakıyordu;
+   `terms`/`country` alanları `terms_checkbox`/`country_select` zincirlerini bulamıyordu.
+   `resolve_field_key` artık `_input`/`_checkbox`/`_radio`/`_select` eklerini sırayla deniyor.
+
+`--fail-on-captcha` da doğrulandı: CAPTCHA tespit edilen koşuda exit **0 → 1** olur (varsayılan
+skip politikası 0 bırakır). Bu, "CAPTCHA'yı hata say" tercihini CI'da kırmızı build'e bağlamak için.
+
+### 19.5 CI'ya bağlandı
+
+`ci.yml` iki yerde kiti koşar: **kapılar** işinde `run_load_test.py --sandbox --check`
+(tarayıcısız, artefakt/kapsam doğrulaması) ve **e2e** işinde `sandbox_up.sh --keep` sonrası
+`run_load_test.py --sandbox --contexts 10 --concurrency 5` (gerçek 10 bağlam). Yani seçici
+kataloğu veya hedef şeması bozulursa PR kırmızı olur. `actionlint` üç workflow için exit 0.

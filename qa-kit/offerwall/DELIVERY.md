@@ -2053,7 +2053,11 @@ wait_port() {
 
 cleanup() {
   if [[ "${KEEP}" -eq 1 ]]; then
-    log "sunucular açık bırakıldı (--keep). Kapatmak için: kill ${STARTED_PIDS[*]:-}"
+    if (( ${#STARTED_PIDS[@]} )); then
+      log "sunucular açık bırakıldı (--keep). Kapatmak için: kill ${STARTED_PIDS[*]}"
+    else
+      log "sunucular açık bırakıldı (--keep); bu koşuda yeniden başlatılmadılar (zaten ayaktaydılar)"
+    fi
     return 0
   fi
   for pid in "${STARTED_PIDS[@]:-}"; do
@@ -2095,9 +2099,16 @@ fi
 
 # --- 3) koşu --------------------------------------------------------------------------
 log "koşu başlıyor: ${CONTEXTS} context / ${CONCURRENCY} paralel (run_offerwall.py --sandbox)"
+# KOMUT DİZİSİ KURALI: passthrough argümanları ayrı bir diziye eklenir ve dizi YALNIZCA doluysa
+# komuta katılır. Eski `"${PASSTHROUGH[@]:-}"` biçimi boş dizide TEK bir boş argüman üretiyordu
+# ("" → argparse: "unrecognized arguments: ") ve run_offerwall.py'yi her seferinde exit 2 ile
+# düşürüyordu.
+RUN_ARGS=("${PY}" "${HERE}/run_offerwall.py" --sandbox --contexts "${CONTEXTS}" --concurrency "${CONCURRENCY}")
+if (( ${#PASSTHROUGH[@]} )); then
+  RUN_ARGS+=("${PASSTHROUGH[@]}")
+fi
 set +e
-"${PY}" "${HERE}/run_offerwall.py" --sandbox \
-  --contexts "${CONTEXTS}" --concurrency "${CONCURRENCY}" "${PASSTHROUGH[@]:-}"
+"${RUN_ARGS[@]}"
 code=$?
 set -e
 

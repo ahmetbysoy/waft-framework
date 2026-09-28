@@ -1,0 +1,46 @@
+{
+  "_comment": [
+    "YEREL SANDBOX hedefleri (examples/offerwall_sandbox.py, varsayılan http://127.0.0.1:8090).",
+    "Çalıştırmak için: bash qa-kit/offerwall/sandbox_up.sh  ve ardından",
+    "  python3 qa-kit/loadtest/run_load_test.py --sandbox",
+    "İki satır var:",
+    "  1) kayit-formu     : /register formunu doldurur, devmail'den doğrulama linkini alır,",
+    "                       /verify?token=... sayfasına gider ve [data-testid='verified'] bekler.",
+    "  2) captcha-drill   : /captcha sayfasında CAPTCHA tespit yolunu kanıtlar. Bu koşuda",
+    "                       test CAPTCHA_DETECTED olarak loglanır, hata FIRLATILMAZ, bağlam",
+    "                       güvenli şekilde kapatılır (skip). Exit kodu bu yüzden 1 DEĞİLDİR."
+  ],
+  "targets": [
+    {
+      "name": "kayit-formu",
+      "target_url": "{TARGET_URL}/register",
+      "scenario": "email-verify",
+      "form_fields": {
+        "email": "{email}",
+        "password": "{password}",
+        "password_confirm": "{password}",
+        "first_name": "Yuk",
+        "last_name": "Testcisi",
+        "country": "TR",
+        "terms": "on"
+      },
+      "submit_selector": "[data-testid='register-submit'], #register-submit, button[type='submit']",
+      "success_selector": "[data-testid='success'], .notice.success",
+      "error_selector": "[data-testid='error'], .notice.error",
+      "requires_email_verification": true,
+      "verification_subject_regex": "(doğrula|dogrula|verify|confirm|aktivasyon|activate)",
+      "wait_after_submit_ms": 800,
+      "tags": ["sandbox", "signup"]
+    },
+    {
+      "name": "captcha-drill",
+      "target_url": "{TARGET_URL}/captcha",
+      "scenario": "captcha-drill",
+      "form_fields": {},
+      "success_selector": "[data-testid='captcha']",
+      "requires_email_verification": false,
+      "wait_after_submit_ms": 0,
+      "tags": ["sandbox", "captcha"]
+    }
+  ]
+}
