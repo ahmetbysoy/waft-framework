@@ -19,18 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----------------------------------------------------------------------------
-LEGAL NOTICE / YASAL UYARI
-
-This framework is intended for authorised testing only: your own systems, or
-systems for which you have explicit written permission (penetration-test
-contract, bug-bounty scope, staging environment). The stealth and proxy
-features exist to make legitimate test traffic look like real user traffic,
-not to bypass access controls of systems you do not own.
-
-Bu çerçeve yalnızca yetkili testler için tasarlanmıştır: kendi sistemleriniz
-veya yazılı izin aldığınız sistemler (pentest sözleşmesi, bug-bounty kapsamı,
-staging ortamı). Stealth ve proxy özellikleri meşru test trafiğini gerçek
-kullanıcı trafiğine benzetmek içindir; sahibi olmadığınız sistemlerin erişim
-kontrollerini aşmak için değildir.

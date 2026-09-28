@@ -557,6 +557,8 @@ sınırlar içinde (rate-limit, iterations) yapın. Sorumluluk kullanıcıdadır
 
 ---
 
+> Yasal uyarının tam metni: [`NOTICE.md`](NOTICE.md) · Lisans: [MIT](LICENSE)
+
 ### Hızlı komut özeti
 
 ```bash
