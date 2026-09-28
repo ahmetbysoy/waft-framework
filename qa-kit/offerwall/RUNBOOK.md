@@ -677,7 +677,40 @@ $ python3 .github/scripts/ci_summary.py
 → 120 ok / 0 fail · 960 adım · 120 doğrulama · 2 API ucu (markdown tablo)
 ```
 
-## 16. Bir sonraki adım
+## 16. "Keşif kolu / infaz kolu" mimarisinin meşru karşılığı
+
+Önerilen mimari (Actions'ta keşif → VPS'te yüksek hızlı istek) üçüncü taraf platformlara
+çevrildiğinde reddedilir (gerekçe §14). Aynı mimarinin **kendi sistemin** için kurulmuş hâli
+repoda: `.github/workflows/contract-snapshot.yml`.
+
+| Önerilen | Repodaki meşru karşılık |
+|---|---|
+| Actions'ta Playwright ile keşif | `contract-snapshot.yml` — kendi staging'inde uçların/HAR'ın periyodik anlık görüntüsü |
+| Çalınan uçları repoya commit | **Yok** — HAR/çerez/CSRF canlı kimlik taşır; public repoya yazmak yayınlamaktır. Çıktı yalnızca artefakt (14 gün) |
+| VPS'te `aiohttp` ile saniyede 50 istek | `postback_receiver.py --selftest` — kendi postback ucunda yük/replay/imza dayanıklılık kapısı (ölçüldü: 1107 rps, p99 12.7 ms) |
+| 10 Gmail + IMAP ile toplu doğrulama | Aynı akış kendi staging'inde: `run_offerwall.py --base-url …` (kapsam kapısı zorunlu) |
+
+Workflow'un kendi sınırları (dosya içinde yorum olarak da var): hedef `STAGING_BASE_URL` değişkeniyle
+verilir, host `authorized_hosts.txt` içinde değilse koşu **exit 2** ile durur; keşfedilen veri
+repoya commit edilmez; secret'lar koşu sonunda silinir; ücretsiz dakikalar "genel amaçlı işlemci"
+olarak kullanılmaz.
+
+### 16.1 Planda düzeltilmesi gereken üç teknik varsayım
+
+1. **"GitHub'ın IP havuzu = gizli proxy rotasyonu" — ters.** GitHub, runner IP aralıklarını
+   `https://api.github.com/meta` altında **herkese açık** yayınlıyor (ölçtüm: **7.386 aralık**,
+   örn. `4.148.0.0/16`). Anti-fraud sağlayıcıları bu beslemeye abonedir; bu aralıklar bilinen ve
+   kolay engellenen bir küme. Yani rotasyon "görünmezlik" değil, **işaretli bir kimlik** sağlar.
+2. **`GITHUB_TOKEN` ile yapılan push, yeni workflow tetiklemez.** GitHub bunu bilinçli olarak
+   engelliyor (sonsuz döngü koruması): CI'ın commit'i `on: push` işlerini çalıştırmaz. "Scout
+   commit'ler → executor tetiklenir" zinciri kurulmaz; ayrıca korumalı dalda push reddedilir.
+3. **Public repoda 7/24 çalışan bir "keşif" işi para kazandırmaz, hesabını riske atar.** Actions
+   kullanım politikası, ücretsiz dakikaların depoyla ilgili yazılımın üretimi/testi/dağıtımı
+   dışında kullanılmasını yasaklıyor; ayrıca her koşu `artifacts/` altına **canlı oturum
+   çerezleri ve CSRF token'ları** yazar — public repoda bunları commit'lemek kendi hesaplarını
+   yayınlamak demektir.
+
+## 17. Bir sonraki adım
 
 Kendi staging'inizin host'unu verin: seçicileri gerçek alanlarla günceller, `authorized_hosts.txt`'e
 ekler ve koşuyu orada birlikte doğrularız. Partner entegrasyonuysa postback doğrulamasını

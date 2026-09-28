@@ -1,0 +1,157 @@
+name: Contract snapshot (own staging)
+
+# ---------------------------------------------------------------------------------------------
+# NE YAPAR
+#   Kendi staging / pre-prod / yazılı izin aldığın ortamına karşı periyodik olarak kayıt/davet
+#   akışını çalıştırır; keşfedilen API uçlarını, HAR'ları ve sayaçları artefakt olarak saklar.
+#   Amacı "keşif" değil, SÖZLEŞME İZLEME: kendi API yüzeyin habersiz değişirse (alan adı, yeni
+#   alan, farklı status) burada yakalarsın.
+#
+# NE YAPMAZ (bilinçli sınırlar)
+#   1) Üçüncü taraf hedeflere GİTMEZ. Hedef, depo değişkeni STAGING_BASE_URL ile verilir ve
+#      run_offerwall.py'nin kapsam kapısı koşuda ZORUNLUDUR: host, qa-kit/authorized_hosts.txt
+#      içinde yoksa koşu exit 2 ile durur. Yani "hedefi değiştirip başkasının sistemine gitmek"
+#      bu workflow'u düzenlemeden mümkün değildir — ve o düzenleme PR'da görünür.
+#   2) Keşfedilen veriyi REPOYA COMMIT ETMEZ. HAR dosyaları ve oturum çerezleri/CSRF token'ları
+#      canlı kimlik bilgisi taşır; public bir depoya yazmak onları dünyaya yayınlamaktır.
+#      Bu yüzden çıktı yalnızca artefakt olarak yüklenir ve 14 gün sonra silinir.
+#   3) secret'ları diske yazıp koşudan sonra TEMİZLER (if: always()).
+#   4) GitHub'ın ücretsiz dakikalarını "genel amaçlı işlemci" olarak kullanmaz; iş, bu depodaki
+#      yazılımın test edilmesine hizmet eder (Actions kullanım politikası bunu şart koşar).
+#
+# KURULUM
+#   1) qa-kit/authorized_hosts.txt içine kendi host'unu ekle (ör. staging.sirketiniz.com) ve
+#      bunu bir commit ile yap — böylece kapsam değişikliği kayıt altında olur.
+#   2) Settings > Secrets and variables > Actions:
+#        Variables: STAGING_BASE_URL = https://staging.sirketiniz.com
+#        Secrets  : OFFERWALL_CREDENTIALS_JSON = credentials.json içeriği (kendi hesapların)
+#                   IMAP_SUBJECT_REGEX (opsiyonel)
+#   3) Test hesaplarını KENDİ staging'inde açtığın hesaplardan seç; gerçek müşteri verisi kullanma.
+#
+# Çalıştırma: Actions > Contract snapshot > Run workflow  (STAGING_BASE_URL boşsa iş sessizce
+# atlanır ve gerekçesini job summary'ye yazar).
+
+on:
+  schedule:
+    - cron: "0 */8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contract-snapshot
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  snapshot:
+    name: Kendi staging'imde sözleşme anlık görüntüsü
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v4
+
+      - name: Hedef tanımlı mı?
+        run: |
+          if [ -z "${{ vars.STAGING_BASE_URL }}" ]; then
+            printf '## Contract snapshot atlandı\n\n`STAGING_BASE_URL` depo değişkeni tanımlı değil.\n' >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=Atlandı::STAGING_BASE_URL tanımlanmadığı için koşu yapılmadı."
+            echo "SNAPSHOT_SKIP=1" >> "$GITHUB_ENV"
+          else
+            echo "hedef: ${{ vars.STAGING_BASE_URL }}"
+          fi
+
+      - name: Python 3.13
+        if: env.SNAPSHOT_SKIP != '1'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Playwright tarayıcı önbelleği
+        if: env.SNAPSHOT_SKIP != '1'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Bağımlılıklar + Chromium
+        if: env.SNAPSHOT_SKIP != '1'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Kimlik dosyasını yaz (0600) ve hedef verisini üret
+        if: env.SNAPSHOT_SKIP != '1'
+        env:
+          CREDENTIALS_JSON: ${{ secrets.OFFERWALL_CREDENTIALS_JSON }}
+        run: |
+          if [ -z "${CREDENTIALS_JSON}" ]; then
+            echo "::error title=Secret eksik::OFFERWALL_CREDENTIALS_JSON tanımlanmalı."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "${CREDENTIALS_JSON}" > qa-kit/offerwall/credentials.json
+          python qa-kit/offerwall/import_credentials.py \
+            --in qa-kit/offerwall/credentials.json \
+            --out qa-kit/offerwall/credentials.json \
+            --require-gmail --min-accounts 1
+          python qa-kit/offerwall/make_targets_offerwall.py \
+            --base-url "${{ vars.STAGING_BASE_URL }}" \
+            --out qa-kit/offerwall/targets_offerwall.staging.xlsx
+          python qa-kit/offerwall/validate_targets.py \
+            --targets qa-kit/offerwall/targets_offerwall.staging.xlsx
+
+      - name: Seçicileri kendi sayfanda çöz
+        if: env.SNAPSHOT_SKIP != '1'
+        run: |
+          python qa-kit/selector_resolver.py \
+            --data qa-kit/offerwall/targets_offerwall.staging.xlsx \
+            --catalogue qa-kit/offerwall/selectors_offerwall.json \
+            --out qa-kit/offerwall/selectors.staging.json \
+            --report qa-kit/offerwall/selectors.staging.report.json
+
+      - name: Koşu (kapsam kapısı açık — host authorized_hosts.txt içinde olmalı)
+        if: env.SNAPSHOT_SKIP != '1'
+        env:
+          IMAP_SUBJECT_REGEX: ${{ secrets.IMAP_SUBJECT_REGEX }}
+        run: |
+          python qa-kit/offerwall/run_offerwall.py \
+            --credentials qa-kit/offerwall/credentials.json \
+            --targets qa-kit/offerwall/targets_offerwall.staging.xlsx \
+            --selectors qa-kit/offerwall/selectors.staging.json \
+            --base-url "${{ vars.STAGING_BASE_URL }}" \
+            --contexts 4 --concurrency 2 --retries 1 \
+            --proxy-mode off \
+            --imap-host imap.gmail.com --imap-port 993 --imap-ssl on --imap-timeout 180 \
+            --imap-subject-regex "${IMAP_SUBJECT_REGEX:-"(doğrula|verify|confirm|aktivasyon)"}" \
+            --artifacts artifacts --log-level INFO --no-color
+
+      - name: Koşu özeti (job summary)
+        if: always() && env.SNAPSHOT_SKIP != '1'
+        run: python .github/scripts/ci_summary.py
+
+      - name: Artefaktlar (HAR, uçlar, raporlar) — 14 gün
+        if: always() && env.SNAPSHOT_SKIP != '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-snapshot-${{ github.run_id }}
+          path: |
+            artifacts/
+            qa-kit/offerwall/selectors.staging.json
+            qa-kit/offerwall/selectors.staging.report.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Kimlik dosyasını sil
+        if: always()
+        run: rm -f qa-kit/offerwall/credentials.json
