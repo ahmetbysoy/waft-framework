@@ -27,6 +27,10 @@ rejected outright - automated sign-ups there are abuse, not load testing.
 
 Usage
 -----
+Local end-to-end, one command (bundled sandbox; see qa-kit/offerwall/RUNBOOK.md):::
+
+    python3 qa-kit/offerwall/run_offerwall.py --sandbox
+
 Local end-to-end against the bundled sandbox (see qa-kit/README.md)::
 
     python qa-kit/offerwall/run_offerwall.py \
@@ -63,12 +67,22 @@ from typing import Any, Final, Optional, Sequence
 
 # --- make the package + sibling modules importable when run as a plain script --------------
 _HERE: Final[Path] = Path(__file__).resolve().parent
+_KIT: Final[Path] = _HERE.parent
 _REPO: Final[Path] = _HERE.parent.parent
-for _path in (str(_REPO), str(_HERE)):
+for _path in (str(_REPO), str(_HERE), str(_KIT)):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
 from account_pool import Account, AccountPool, AccountPoolError  # noqa: E402  (local sibling)
+
+#: Scope guard is *enforced*, not merely documented: the same allow-list file and the same
+#: hard block-list as ``run_regression.py`` (imported below, single source of truth).
+from run_regression import (  # noqa: E402  (qa-kit sibling)
+    BLOCKED_THIRD_PARTY_SUFFIXES,
+    SCOPE_HELP,
+    Scope,
+    host_of,
+)
 
 from waft.config import Config  # noqa: E402
 from waft.data_source import DataLoader  # noqa: E402
@@ -482,6 +496,46 @@ def print_endpoint_summary(summary: dict[str, Any]) -> None:
 # ======================================================================================
 # CLI
 # ======================================================================================
+#: Values ``--sandbox`` fills in when the caller did not pass the corresponding flag.
+SANDBOX_CREDENTIALS: Final[Path] = _HERE / "credentials.sandbox.json"
+SANDBOX_BASE_URL: Final[str] = "http://127.0.0.1:8090"
+SANDBOX_IMAP_HOST: Final[str] = "127.0.0.1"
+SANDBOX_IMAP_PORT: Final[int] = 1430
+
+
+def resolve_defaults(args: argparse.Namespace) -> argparse.Namespace:
+    """Apply the real CLI defaults after ``--sandbox`` has had its say.
+
+    Explicitly passed flags always win: only values left as ``None`` by argparse are filled in
+    here, which is why the affected options declare ``default=None`` instead of a literal.
+    """
+    if args.sandbox:
+        if args.credentials is None:
+            args.credentials = SANDBOX_CREDENTIALS
+        if args.base_url is None:
+            args.base_url = SANDBOX_BASE_URL
+        if args.proxy_mode is None:
+            args.proxy_mode = "off"
+        if args.imap_host is None:
+            args.imap_host = SANDBOX_IMAP_HOST
+        if args.imap_port is None:
+            args.imap_port = SANDBOX_IMAP_PORT
+        if args.imap_ssl is None:
+            args.imap_ssl = "off"
+        if args.imap_timeout is None:
+            args.imap_timeout = 30.0
+    else:
+        if args.credentials is None:
+            args.credentials = _HERE / "credentials.json"
+        if args.proxy_mode is None:
+            args.proxy_mode = "auto"
+        if args.imap_ssl is None:
+            args.imap_ssl = "on"
+        if args.imap_timeout is None:
+            args.imap_timeout = 180.0
+    return args
+
+
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="run_offerwall.py",
@@ -491,10 +545,22 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--credentials", type=Path, default=_HERE / "credentials.json",
-                        help="Account pool: credentials.json (or email:password text file).")
+    parser.add_argument("--sandbox", action="store_true",
+                        help="Tek komutlu yerel koşu: credentials.sandbox.json + 127.0.0.1:8090 hedefleri "
+                             "+ yerel IMAP (127.0.0.1:1430, SSL off) + proxy kapalı. Açıkça verilen "
+                             "bayraklar bu varsayılanları her zaman geçersiz kılar.")
+    parser.add_argument("--credentials", type=Path, default=None,
+                        help="Account pool: credentials.json (or email:password text file). "
+                             "(varsayılan: credentials.json; --sandbox ile credentials.sandbox.json)")
     parser.add_argument("--targets", type=Path, default=_HERE / "targets_offerwall.xlsx",
                         help="Target sheet with {email}/{password} placeholders.")
+    parser.add_argument("--scope", type=Path, default=_KIT / "authorized_hosts.txt",
+                        help="Host allow-list (scope file). Target hosts outside it are refused.")
+    parser.add_argument("--allow-host", action="append", default=[],
+                        help="Extra allowed host (repeatable); requires --i-am-authorized.")
+    parser.add_argument("--i-am-authorized", action="store_true",
+                        help="Assert you own / are allowed to test the --allow-host entries. "
+                             "Never overrides the third-party block-list.")
     parser.add_argument("--base-url", default=None,
                         help="Rewrite every target_url to this host (staging <-> sandbox switch).")
     parser.add_argument("--contexts", type=int, default=10, help="Isolated browser contexts (= accounts).")
@@ -502,16 +568,19 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--rate-limit", type=float, default=2.0, help="Global navigations/second cap.")
     parser.add_argument("--retries", type=int, default=2, help="Retry attempts per target.")
     parser.add_argument("--proxies", type=Path, default=_REPO / "proxies.txt", help="Proxy list file.")
-    parser.add_argument("--proxy-mode", default="auto", choices=["auto", "require", "off"], help="Proxy policy.")
+    parser.add_argument("--proxy-mode", default=None, choices=["auto", "require", "off"],
+                        help="Proxy policy. (varsayılan: auto; --sandbox ile off)")
     parser.add_argument("--selectors", type=Path, default=_HERE / "selectors.resolved.json",
                         help="Resolved selector map (produced by selector_resolver.py).")
     parser.add_argument("--imap-host", default=None, help="IMAP host (default: first account's imap_host).")
     parser.add_argument("--imap-port", type=int, default=None, help="IMAP port (default: first account's imap_port).")
     parser.add_argument("--imap-user", default=None, help="IMAP user (default: first account's e-mail).")
     parser.add_argument("--imap-password", default=None, help="IMAP password (default: first account's app password).")
-    parser.add_argument("--imap-ssl", choices=["on", "off"], default="on", help="Implicit TLS (993) or plain IMAP.")
+    parser.add_argument("--imap-ssl", choices=["on", "off"], default=None,
+                        help="Implicit TLS (993) or plain IMAP. (varsayılan: on; --sandbox ile off)")
     parser.add_argument("--imap-subject-regex", default=DEFAULT_SUBJECT_REGEX, help="Verification mail subject filter.")
-    parser.add_argument("--imap-timeout", type=float, default=180.0, help="Seconds to wait for each mail.")
+    parser.add_argument("--imap-timeout", type=float, default=None,
+                        help="Seconds to wait for each mail. (varsayılan: 180; --sandbox ile 30)")
     parser.add_argument("--artifacts", type=Path, default=_REPO / "artifacts", help="Artifacts root.")
     parser.add_argument("--log-level", default="INFO", help="Console log level.")
     parser.add_argument("--no-humanize", action="store_true", help="Disable human-like typing (faster).")
@@ -552,6 +621,92 @@ def load_template_rows(config: Config) -> list[TargetRow]:
     return rows
 
 
+def load_scope(path: Path, extra_hosts: Sequence[str]) -> Scope:
+    """Load the allow-list file (comment/blank tolerant) plus any ``--allow-host`` extras."""
+    patterns: list[str] = []
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+        for raw_line in text.splitlines():
+            line = raw_line.split("#", 1)[0].strip().lower()
+            if line:
+                patterns.append(line)
+    except OSError as exc:
+        logger.warning("scope file %s could not be read (%s); %d host(s) from --allow-host only",
+                       path, exc, len(extra_hosts))
+    patterns.extend(str(host).strip().lower() for host in extra_hosts if str(host).strip())
+    return Scope(patterns=tuple(dict.fromkeys(patterns)))
+
+
+def scope_host_candidates(url: str) -> list[str]:
+    """Return the host forms a scope file may legitimately mention for *url*.
+
+    ``urlsplit("http://127.0.0.1:8090/x").netloc`` is ``127.0.0.1:8090``, while scope files are
+    written with bare hosts (``127.0.0.1``). Comparing only the netloc therefore rejected the
+    kit's own sandbox - so both forms are matched, plus the IPv6 bracket form.
+    """
+    netloc = host_of(url)
+    if not netloc:
+        return []
+    candidates = [netloc]
+    if netloc.startswith("["):  # [::1]:8090 -> ::1
+        closing = netloc.find("]")
+        if closing != -1:
+            candidates.append(netloc[1:closing])
+    elif ":" in netloc:  # host:port -> host
+        candidates.append(netloc.rsplit(":", 1)[0])
+    return list(dict.fromkeys(candidates))
+
+
+def enforce_scope(rows: Sequence[TargetRow], scope: Scope, *, i_am_authorized: bool) -> tuple[list[str], list[str]]:
+    """Refuse third-party platforms and hosts missing from the scope file.
+
+    Returns ``(blocked, unauthorized)``. Raises :class:`ScopeViolation` when the run must stop,
+    which is the case for every hard-blocked host *and* for out-of-scope hosts unless the caller
+    explicitly asserted authorization.
+    """
+    blocked: list[str] = []
+    unauthorized: list[str] = []
+    for row in rows:
+        candidates = scope_host_candidates(str(row.target_url or ""))
+        if not candidates:
+            continue
+        host = candidates[0]
+        if any(
+            candidate == suffix or candidate.endswith("." + suffix)
+            for candidate in candidates
+            for suffix in BLOCKED_THIRD_PARTY_SUFFIXES
+        ):
+            blocked.append(host)
+        elif not any(scope.allows(candidate) for candidate in candidates):
+            unauthorized.append(host)
+    blocked = sorted(set(blocked))
+    unauthorized = sorted(set(unauthorized) - set(blocked))
+
+    if blocked:
+        raise ScopeViolation(
+            "third-party offerwall / micro-task platform(s) are out of scope for this kit: "
+            + ", ".join(blocked)
+            + ". Automated sign-ups there are abuse (not load testing); integrate through the "
+              "platform's official API or a sandbox they grant you in writing. For your own "
+              "staging, pass --base-url or use --sandbox."
+        )
+    if unauthorized and not i_am_authorized:
+        raise ScopeViolation(
+            "host(s) not covered by the scope file: " + ", ".join(unauthorized) + " — " + SCOPE_HELP
+            + " (or use --sandbox / --base-url for your own environment)"
+        )
+    if unauthorized:
+        logger.warning(
+            "running against host(s) outside %s because --i-am-authorized was given: %s",
+            "the scope file", ", ".join(unauthorized),
+        )
+    return blocked, unauthorized
+
+
+class ScopeViolation(RuntimeError):
+    """Raised when a target host is out of scope (hard block-list or missing allow-list entry)."""
+
+
 def rewrite_base_url(args: argparse.Namespace) -> Optional[Path]:
     """Point every row at *args.base_url* by rewriting the sheet into the artifacts directory."""
     if not args.base_url:
@@ -578,8 +733,16 @@ def rewrite_base_url(args: argparse.Namespace) -> Optional[Path]:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    args = parse_args(argv)
+    args = resolve_defaults(parse_args(argv))
     configure_logging(args.log_level, color=not args.no_color)
+
+    if args.sandbox:
+        print(
+            "🔒 sandbox modu — yerel mock hedef: " + str(args.base_url)
+            + " | posta kutusu: " + str(args.imap_host) + ":" + str(args.imap_port) + " (SSL " + str(args.imap_ssl) + ")"
+            + " | proxy: " + str(args.proxy_mode)
+        )
+        print("   yalnızca bu makinedeki mock sunucu; üçüncü parti platform hedefi yok.")
 
     # --- 1) account pool -----------------------------------------------------------------
     try:
@@ -587,6 +750,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         warnings = pool.validate(require_enabled=True)
     except AccountPoolError as exc:
         print(f"✖ credential problem: {exc}", file=sys.stderr)
+        if not args.sandbox and SANDBOX_CREDENTIALS.exists():
+            print("→ ipucu: yerel mock ile tek komutta denemek için:  "
+                  "python3 qa-kit/offerwall/run_offerwall.py --sandbox", file=sys.stderr)
         return 2
     print(pool.describe())
     for warning in warnings:
@@ -608,6 +774,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     except Exception as exc:  # noqa: BLE001 - configuration/data problems are usage errors
         print(f"✖ configuration error: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
+
+    # --- 2b) scope gate (hard block-list always wins) ------------------------------------
+    try:
+        scope = load_scope(args.scope, args.allow_host)
+        blocked, unauthorized = enforce_scope(template_rows, scope, i_am_authorized=bool(args.i_am_authorized))
+    except ScopeViolation as exc:
+        print(f"✖ scope: {exc}", file=sys.stderr)
+        return 2
+    print(
+        f"→ scope: {len(scope.patterns)} pattern(s) from {args.scope} | "
+        f"blocked_third_party={blocked or 'none'} | out_of_scope_override={unauthorized or 'none'}"
+    )
 
     # --- 3) bind rows to accounts --------------------------------------------------------
     rows_by_context: list[list[TargetRow]] = []
