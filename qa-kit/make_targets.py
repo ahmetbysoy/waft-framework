@@ -35,7 +35,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Any, Final, Sequence
+from typing import Any, Final, Optional, Sequence
 
 try:  # pandas is a hard runtime dependency of the framework (Excel data source)
     import pandas as pd
@@ -91,12 +91,19 @@ def build_rows(
     password: str,
     locale_hint: str,
     require_verification: bool = True,
+    gmail_user: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     """Return *rows* sign-up records pointing at *base_url*.
 
     Emails are generated inside *mail_domain* - a domain you control - because the IMAP
     watcher has to be able to read them.  Never point ``verification_email`` at a mailbox
     you do not own.
+
+    Pass ``gmail_user`` (your own Gmail address) to use **plus-addressing** instead:
+    ``hesabim@gmail.com`` becomes ``hesabim+signup001@gmail.com``.  Every alias lands in the
+    same inbox, so ONE Gmail account + one app password is enough to run hundreds of rows -
+    and Gmail IMAP (``imap.gmail.com:993``) still sees the app's mail.  Gmail addresses are
+    only ever used for *your* mailbox: the form under test must be your own application.
     """
     first_names: Sequence[str] = (
         "Ayse", "Mehmet", "Zeynep", "Can", "Elif", "Burak", "Selin", "Emre",
@@ -110,7 +117,11 @@ def build_rows(
     for index in range(1, rows + 1):
         first_name = first_names[(index - 1) % len(first_names)]
         slug = first_name.lower()
-        email = f"qa.{slug}.{index:03d}@{mail_domain}"
+        if gmail_user:
+            local = gmail_user.strip().removesuffix("@gmail.com").split("@", 1)[0]
+            email = f"{local}+signup{index:03d}@gmail.com"
+        else:
+            email = f"qa.{slug}.{index:03d}@{mail_domain}"
         records.append(
             {
                 "target_url": f"{base_url.rstrip('/')}/",
@@ -167,6 +178,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default="demo.waft.local",
         help="Domain of the generated e-mail addresses; its mailbox must be readable over IMAP.",
     )
+    parser.add_argument(
+        "--gmail-user",
+        default=None,
+        help="Your own Gmail address; rows then use plus-aliases (user+signup001@gmail.com).",
+    )
     parser.add_argument("--rows", type=int, default=12, help="How many sign-up rows to generate.")
     parser.add_argument("--password", default="Str0ng-Passw0rd!", help="Password written to every row.")
     parser.add_argument("--locale-hint", default="tr", help="Tag added to the 'tags' column (reporting only).")
@@ -190,9 +206,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         password=args.password,
         locale_hint=args.locale_hint,
         require_verification=args.require_verification,
+        gmail_user=args.gmail_user,
     )
     path = write_workbook(records, Path(args.out))
-    print(f"✔ {path} written: {len(records)} row(s) -> {args.base_url}  (mailbox domain: {args.mail_domain})")
+    mailbox = f"{args.gmail_user} (+aliases)" if args.gmail_user else args.mail_domain
+    print(f"✔ {path} written: {len(records)} row(s) -> {args.base_url}  (mailbox: {mailbox})")
     print(f"  columns: {', '.join(COLUMNS)}")
     return 0
 
