@@ -710,7 +710,42 @@ olarak kullanılmaz.
    çerezleri ve CSRF token'ları** yazar — public repoda bunları commit'lemek kendi hesaplarını
    yayınlamak demektir.
 
-## 17. Bir sonraki adım
+## 17. "Vercel serverless + residential proxy" önerisi: doğrulanmış engeller
+
+GitHub Actions yerine Vercel Functions + residential proxy ile aynı iş (üçüncü taraf platformda
+otomatik kayıt + API keşfi) önerildi. Karar aynı (§14): yazılmaz, deploy edilmez. Ancak bu
+varyantta **dört teknik engel** var; üçünü bu makinede/kaynakta doğruladım.
+
+| # | İddia | Doğrulama | Sonuç |
+|---|---|---|---|
+| 1 | "Kod çalışır" | `node --check scout.js` → **SyntaxError: missing ) after argument list** (`page.on('request', (request) {` satırında ok fonksiyonunun `=>` işareti yok) | Gönderilen kod **ayrıştırılamıyor**; deploy edilse build hatası verir |
+| 2 | "Playwright Vercel'de çalışır" | Vercel Functions sınırı: **250 MB açılmış (Node)** · Chromium headless-shell tek başına ~150-200 MB ve Vercel'in Node runtime'ı (AWS Lambda) Chromium'un istediği sistem kütüphanelerini (libnss3, libatk, libgbm …) içermiyor | `npm i playwright` + `playwright install` bir serverless bundle'da çalışmaz; Lambda uyumlu özel bir Chromium derlemesi (`@sparticuz/chromium` vb.) ve o da sınırın kenarında |
+| 3 | "6 saatte bir cron" | Vercel dokümanı: **Hobby'de cron günde 1 kez**; günlükten sık ifade deploy'u **reddettirir** ("Hobby accounts are limited to daily cron jobs…") | `"schedule": "0 */6 * * *"` → Hobby hesabında **tüm deployment bloke** olur; Pro (ücretli) gerekir |
+| 4 | "Residential proxy = gerçek İstanbul kullanıcısı" | Residential proxy'ler çok sayıda kullanıcı arasında paylaşılır ve fraud tespit sağlayıcıları bu havuzların itibarını izler | "Görünmezlik" değil; ayrıca ödeme yaparak altyapı temini, kaydı "merak"tan "ad fraud amaçlı satın alma"ya taşır |
+
+Ek not (mimari): `page.on('request')` ile uçları toplayıp webhook'a göndermek, "cookie kaydetmiyoruz"
+diye steril olmuyor — amaç aynı: üçüncü tarafın ödeme/kayıt uçlarını çıkarıp doğrudan istek atmak.
+Yani aradaki webhook adımı yalnızca **ek bir hop**; hukuki/etik tablo §14'teki gibi kalıyor.
+
+### 17.1 Token hijyeni (bu turda uygulanan kural)
+
+Bu mesajda bir Vercel token'ı da düz metin olarak geldi. **Kullanılmadı, hiçbir dosyaya/remote'a
+yazılmadı, geçerliliği test edilmedi.** Kural: platform token'ları yalnızca tek amaçlı bir push
+komutunda, mümkün olan en az kapsamla (`repo` + `workflow` yeterli) ve kullanımdan hemen sonra
+iptal edilmek üzere kullanılır. Sohbete düz metin yapıştırılan her token **yanmış** sayılır.
+
+### 17.2 Cloud'da periyodik tarayıcı otomasyonunun meşru yolu
+
+Kendi sistemlerine karşı çalışacaksa, doğru araç seçimi:
+
+| İhtiyaç | Uygun ortam |
+|---|---|
+| Kısa süreli, depo yazılımına bağlı periyodik koşu | **GitHub Actions** (bu repoda `ci.yml`, `nightly.yml`, `contract-snapshot.yml`) |
+| Uzun/tekrarlayan tarayıcı işi, Chromium'un tam sistem kütüphaneleri | **Konteyner** (Fly.io, Railway, Cloud Run, kendi VPS'in) — Vercel/Lambda serverless değil |
+| Sürekli çalışan servis (WebSocket, kuyruk, postback alıcısı) | **VPS/konteyner** + `postback_receiver.py` (§8) |
+| Kendi staging'inde sözleşme izleme | `contract-snapshot.yml` (§16) |
+
+## 18. Bir sonraki adım
 
 Kendi staging'inizin host'unu verin: seçicileri gerçek alanlarla günceller, `authorized_hosts.txt`'e
 ekler ve koşuyu orada birlikte doğrularız. Partner entegrasyonuysa postback doğrulamasını
