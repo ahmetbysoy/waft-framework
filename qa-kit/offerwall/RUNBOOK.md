@@ -280,7 +280,77 @@ POST 127.0.0.1:8090/survey/2/submit          [200,  60×]
 
 ---
 
-## 10. Bir sonraki adım
+## 10. Taslak wrapper incelemesi (8 gerçek hata) ve düzeltilmiş sürücü
+
+Gönderdiğin tek dosyalık wrapper taslağı, WAFT 1.0.0'ın gerçek API'siyle satır satır
+karşılaştırıldı. Sekiz bulgu **çalıştırılabilir kanıta** bağlandı:
+`tests/test_offerwall_kit_contracts.py` (17 test).
+
+| # | Taslakta | Gerçek / sonuç | Test |
+|---|---|---|---|
+| 1 | `from waft.data_source import load_data` | Böyle bir fonksiyon **yok**; `DataLoader(config).load()` ve dönüş `list[TargetRow]`, DataFrame **değil** → `df.iterrows()` çöker | `test_draft_module_attributes_do_not_exist`, `test_loader_returns_typed_rows_not_a_dataframe` |
+| 2 | `from waft.reporting import generate_summary` | **Yok**; `Reporter`, `render_summary_table`, `summary_as_dict` var | aynı test |
+| 3 | `Config(imap=…, imap_timeout=…, trace=…, artifacts=…)` | Alan adları `imap_enabled`, `imap_timeout_s`, `trace_mode`, `artifacts_dir`; `Config` bir dataclass olduğu için bilinmeyen kwarg **TypeError** verir | `test_draft_config_keywords_are_rejected` |
+| 4 | `Orchestrator(config, targets)` | İmza `Orchestrator(config)`; satırlar `config.data_file`'dan gelir | `test_orchestrator_takes_only_config` |
+| 5 | **`acc['password'] = "***MASKED***"` sonra o değer formda kullanılıyor** | Maskeleme **girdiyi yok ediyor**: forma `***MASKED***` yazılır, kayıt ve IMAP doğrulaması çöker. Maskeleme yalnızca çıktı sınırında yapılmalı (`mask_secret`) | `test_masking_is_display_only_and_never_mutates_the_secret` |
+| 6 | `form_data` 6 alana kırpılıyor | `country`, `terms`, `contact_consent` düşer → kayıt formu **submit olmaz** (daha önce `password_confirm` ile birebir bu sınıf hata yaşandı) | `test_binding_preserves_every_form_field_and_scopes_verification` |
+| 7 | `verification_email` **her** satıra konuyor | Doğrulama alanları yalnızca `email-verify` satırlarında olmalı, yoksa mail beklemeyen satırlar timeout'a düşer | aynı test |
+| 8 | `artifacts/endpoints.json` + `status_codes` + düz liste varsayımı | Gerçek: `artifacts/<run_id>/endpoints.json`, yapı `{"endpoints": [...]}`, alan `statuses` → özet boş çıkar | `test_endpoints_payload_shape_and_reader` |
+
+**Düzeltilmiş, çalışan sürüm:** `qa-kit/offerwall/run_offerwall_min.py` (tek dosya, tam tip
+belirtimli, try/except'li, senin taslağındaki banner/loglama tarzı korunmuş). Tekrar eden
+mantığı kopyalamaz; test edilmiş parçaları **import eder** (`AccountPinnedOrchestrator`,
+`bind_rows_to_account`, `enforce_scope`, `load_scope`).
+
+```bash
+# yerel sandbox (varsayılan)
+python qa-kit/offerwall/run_offerwall_min.py
+
+# kendi staging'iniz
+python qa-kit/offerwall/run_offerwall_min.py --base-url https://staging.sirketiniz.com \
+  --credentials qa-kit/offerwall/credentials.json --proxy-mode require
+```
+
+Doğrulanmış koşu (bu repoda):
+
+```text
+│ Contexts        │ 10 ok / 0 failed │ E-mail verifications │ 20 ok / 0 failed │
+│ Targets run     │               60 │ API endpoints        │                4 │
+│ Targets ok      │               60 │ Duration             │          47.85 s │
+WAFT run run-20260928-184855-dd0a5e PASSED ✅ | 60/60 target(s) ok (100.0%)
+
+API endpoint özeti — run-20260928-184855-dd0a5e (4 uç)
+  GET    127.0.0.1:8090/api/v1/app-config [status 200, 360 kez]
+  POST   127.0.0.1:8090/register [status 200, 360 kez]
+  POST   127.0.0.1:8090/survey/1/submit [status 200, 80 kez]
+  POST   127.0.0.1:8090/survey/2/submit [status 200, 60 kez]
+```
+
+Kapsam kapısı bu sürücüde de zorunlu:
+
+```text
+$ python qa-kit/offerwall/run_offerwall_min.py --base-url https://timewall.io
+✖ scope: third-party offerwall / micro-task platform(s) are out of scope for this kit: timewall.io …  (exit 2)
+
+$ python qa-kit/offerwall/run_offerwall_min.py --base-url https://example.com
+✖ scope: host(s) not covered by the scope file: example.com …                                  (exit 2)
+```
+
+### HAR'dan "daha hızlı bot" fikri hakkında
+
+Taslağın sonundaki ipucu — "HAR'ı incele, form yerine doğrudan API'ye istek atan daha hızlı bir
+bot yaz" — **kendi sistemin için** tamamen meşru ve doğru bir mühendislik hamlesidir: oturum
+açma, CSRF token akışı, idempotency anahtarı gibi sözleşmeleri API seviyesinde test etmek
+formu sürmekten hem hızlı hem kararlıdır. Bu kit zaten bunun altyapısını verir: her context'in
+HAR'ı `artifacts/<run_id>/har/` altında, uç listesi `endpoints.json`'da.
+
+Ama **başkasının platformunda** aynı şey şu anlama gelir: tespit edilen kayıt/ödeme uçlarına
+10 hesapla doğrudan istek atmak — CAPTCHA'yı, rate limit'i ve arayüzü devre dışı bırakarak
+sistemi kötüye kullanmak. Bu yüzden o adımı üçüncü taraf hedefler için yazmıyorum; kendi
+sisteminiz veya yazılı izin aldığınız sandbox için `postback_receiver.py --selftest` ile
+başlayan API seviyesi test yolunu birlikte kurabiliriz.
+
+## 11. Bir sonraki adım
 
 Kendi staging'inizin host'unu verin: seçicileri gerçek alanlarla günceller, `authorized_hosts.txt`'e
 ekler ve koşuyu orada birlikte doğrularız. Partner entegrasyonuysa postback doğrulamasını

@@ -21,6 +21,8 @@ Kiti kendi hedefinize yönlendirmek için `--base-url` kullanın ve host'u
 | + | **API endpoint dayanıklılığı** (S2S postback alıcısı + yük/replay/imza kapısı) | `postback_receiver.py` (6. bölüm) |
 | + | Tek komutla kurulum + ateşleme + sorun giderme | `RUNBOOK.md`, `sandbox_up.sh` (5.6) |
 | + | Bu dokümanı kaynaklardan yeniden üreten builder | `build_delivery.py` (`--check` ile drift denetimi) |
+| + | Minimal tek dosya sürücü (programatik API örneği, kapsam kapılı) | `run_offerwall_min.py` (RUNBOOK §10) |
+| + | Kit sözleşme testleri (17 test; taslak wrapper'ın 8 hatasını kilitler) | `tests/test_offerwall_kit_contracts.py` |
 
 ---
 
