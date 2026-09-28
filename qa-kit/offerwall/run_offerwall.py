@@ -775,7 +775,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(f"✖ configuration error: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
 
-    # --- 2b) scope gate (hard block-list always wins) ------------------------------------
+    # --- 2b) target sheet pre-flight (warn only; scope errors already stopped the run) ----
+    try:
+        from validate_targets import validate_sheet  # local import: avoids a circular import
+
+        sheet_issues = [item for item in validate_sheet(Path(args.targets)) if item.severity in {"error", "warning"}]
+        blocking = [item for item in sheet_issues if item.severity == "error"]
+        for item in blocking:
+            print(f"⚠ hedef sayfası: [{item.row}] {item.field}: {item.message}")
+        print(
+            f"→ hedef sayfası doğrulaması: {len(blocking)} hata, "
+            f"{len(sheet_issues) - len(blocking)} uyarı "
+            f"(ayrıntı: python3 qa-kit/offerwall/validate_targets.py --targets {args.targets})"
+        )
+    except Exception as exc:  # noqa: BLE001 - pre-flight must never block a run
+        logger.debug("target sheet validation skipped: %s", exc)
+
+    # --- 2c) scope gate (hard block-list always wins; runs last so the sheet report is printed first) ------------------------------------
     try:
         scope = load_scope(args.scope, args.allow_host)
         blocked, unauthorized = enforce_scope(template_rows, scope, i_am_authorized=bool(args.i_am_authorized))
@@ -786,6 +802,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"→ scope: {len(scope.patterns)} pattern(s) from {args.scope} | "
         f"blocked_third_party={blocked or 'none'} | out_of_scope_override={unauthorized or 'none'}"
     )
+
+
 
     # --- 3) bind rows to accounts --------------------------------------------------------
     rows_by_context: list[list[TargetRow]] = []

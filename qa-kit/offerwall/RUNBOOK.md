@@ -428,7 +428,80 @@ Toplam suite: **101/101**.
 4. `textarea`, `select` ve `checkbox` için de zincir ekle — sandbox'ta `#country` (select) ve
    `#terms` (checkbox) bunlar; anket satırları da (`survey_*`) aynı sınıfta.
 
-## 12. Bir sonraki adım
+## 12. `validate_targets.py` — hedef sayfasını koşudan ÖNCE doğrula
+
+Gönderdiğin `create_targets_excel()` scripti iki tuzak taşıyordu; ikisi de artık **tarayıcı
+açılmadan** yakalanıyor. Doğrulayıcı hem tek başına hem de `run_offerwall.py` içinde otomatik
+olarak çalışır.
+
+```bash
+python3 qa-kit/offerwall/validate_targets.py --targets qa-kit/offerwall/targets_offerwall.xlsx
+```
+
+Scriptinin ürettiği sayfada gerçek çıktı:
+
+```text
+→ /tmp/tw/targets_offerwall.xlsx: 4 hata, 5 uyarı
+  ✖ [satır-1] target_url: 3. parti offerwall/mikro görev platformu: timewall.io — kit bunu koşu
+              anında reddeder (--i-am-authorized dahil). Kendi staging'iniz için --base-url kullanın.
+  ✖ [satır-1] submit_button_text: virgüllü liste: 'Kayıt Ol,Register,Sign Up' → WAFT bunu tek etiket
+              olarak button:has-text("Kayıt Ol,Register,Sign Up") biçiminde kullanır ve ASLA eşleşmez
+              (sessiz ölü alan). Tek etiket verin; yedekleri selectors json'da tutun …
+  ✖ [satır-2] … (jumptask.io için aynı iki bulgu)
+  ⚠ [satır-1] success_selector: virgüllü CSS listesi — Playwright kabul eder, ancak WAFT seçici
+              kataloğunda alan başına TEK çözüm bekler …
+  ⚠ [-] Sheet1: 2 satır aynı kimliği kullanıyor (Test User) — çoklu hesap senaryosunda farklı
+              isimler beklenir
+```
+
+### 12.1 `submit_button_text` neden ölümcül bir tuzak
+
+`waft/forms.py:1035` bu değeri **birebir** kullanıyor:
+
+```python
+candidates.append(f'button:has-text("{row.submit_button_text}")')
+```
+
+Virgülle ayrılmış bir liste hiçbir zaman eşleşmez. Üstelik koşu **başarılı görünür**, çünkü WAFT
+hemen ardından `SUBMIT_TEXTS` yerleşik listesini deniyor — içinde `kayıt ol`, `register`,
+`sign up`, `gönder`, `tamamla`, `onayla` … var. Yani hatalı alan sessizce yok sayılır:
+"Konfigürasyon doğru" sanırsın, oysa o satır hiç iş yapmıyor.
+
+**Doğru kullanım:** tek etiket (`Hesap oluştur`) ya da hiç vermeyip WAFT'ın yerleşik listesine
+bırakmak. Yedekli etiket zinciri istiyorsan `selectors_offerwall.json` → `submit` alanında tut.
+
+### 12.2 Doğrulayıcının kontrol ettiği şeyler
+
+| Kontrol | Seviye |
+|---|---|
+| 3. parti platform (sert engel listesi) | **hata** |
+| Kapsam dosyasında olmayan host | **hata** |
+| `submit_button_text` virgüllü liste | **hata** |
+| Doğrulama isteyen satırda `verification_email` yok | **hata** |
+| `requires_email_verification` kapalıyken doğrulama alanı dolu (koşu-1 hatası) | **hata** |
+| `target_url` boş / http(s) değil | hata/uyarı |
+| Dengesiz tırnak-parantez-köşeli parantez | uyarı |
+| Virgüllü CSS listesi (`_selector` alanlarında) — geçerli ama katalogda tutulmalı | uyarı |
+| Bilinmeyen yer tutucu (`{hesap}` gibi) | uyarı |
+| Kayıt satırında `password_confirm` yok (anket satırları hariç) | uyarı |
+| Aynı URL+senaryo tekrarı, `wait_after_submit_ms` ≤ 0, tüm satırlarda aynı kimlik | uyarı |
+| Veri olmayan yardım sayfası (ör. kitin `columns` sayfası) | bilgi — atlanır |
+
+Doğrulayıcı kitin kendi sayfasında **0 hata** verir; 11 testi var
+(`tests/test_offerwall_validate_targets.py`), toplam suite **112/112**.
+
+### 12.3 İlk sürümdeki 3 yanlış-pozitif (ve düzeltmeleri)
+
+Kendi aracımı kitin kendi sayfasında koşturunca 27 hata verdi — üçü de **aracın** hatasıydı:
+
+1. Kitin çalışma kitabındaki `columns` (şema) sayfası veri sanıldı → 25 satır "URL boş" çıktı.
+   Düzeltme: `target_url` kolonu olmayan sayfalar veri sayfası kabul edilmez, bilgi olarak atlanır.
+2. `submit_button_text` boşken denge kontrolü çağrılıyordu → uydurma "boş selector" uyarısı.
+   Düzeltme: kontrol yalnızca parantez içeren değerlerde.
+3. Anket satırlarına `password_confirm` uyarısı → şablon yeniden kullanımı yüzünden yanlış.
+   Düzeltme: kural kayıt satırlarıyla sınırlandı (`survey`/`anket` içeren satırlar hariç).
+
+## 13. Bir sonraki adım
 
 Kendi staging'inizin host'unu verin: seçicileri gerçek alanlarla günceller, `authorized_hosts.txt`'e
 ekler ve koşuyu orada birlikte doğrularız. Partner entegrasyonuysa postback doğrulamasını
