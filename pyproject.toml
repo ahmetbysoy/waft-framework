@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "waft-framework"
+version = "1.0.0"
+description = "WAFT — Web Automation & Form-Test Framework: multi-context Playwright automation with stealth, proxy rotation, Excel-driven form filling, network discovery and IMAP verification."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "WAFT contributors" }]
+keywords = ["playwright", "automation", "testing", "load-testing", "stealth", "proxy", "imap", "form-filling"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: QA Engineers",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Internet :: WWW/HTTP",
+]
+dependencies = [
+    "playwright>=1.47",
+    "python-dotenv>=1.0",
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+stealth = ["playwright-stealth>=2.0"]
+dev = ["pytest>=8.0", "pytest-timeout>=2.3", "ruff>=0.6", "mypy>=1.10"]
+legacy-excel = ["xlrd>=2.0"]
+
+[project.scripts]
+waft = "waft.cli:main"
+
+[tool.setuptools]
+packages = ["waft"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B008", "UP007"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_ignores = true
+warn_redundant_casts = true
+ignore_missing_imports = true
+check_untyped_defs = false
+exclude = ["examples/", "tests/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers -p no:cacheprovider"
+markers = ["integration: requires a real browser (Playwright binaries)"]

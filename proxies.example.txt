@@ -1,0 +1,19 @@
+# WAFT proxy listesi — her satır bir proxy, '#' ile başlayan satırlar yorumdur.
+#
+# Desteklenen formatlar:
+#   host:port
+#   host:port:username:password
+#   username:password@host:port
+#   http://username:password@host:8080
+#   socks5://username:password@host:1080
+#   socks5h://host:1080            (DNS çözümlemesi proxy tarafında)
+#   1.2.3.4:8080 user pass         (boşluklu format)
+#
+# Gerçek bir çalıştırmada aşağıdaki satırları kendi proxy'lerinizle değiştirin.
+# Örnek (çalışma testi için kullanılmaz — health-check başarısız olur):
+# 127.0.0.1:8888
+# user:pass@proxy1.example.com:8080
+# socks5://user:pass@proxy2.example.com:1080
+#
+# Lokal demo çalıştırmasında proxy kullanmak istemiyorsanız:
+#   python -m waft --data examples/data/targets.xlsx --proxy-mode off

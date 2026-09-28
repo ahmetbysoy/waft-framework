@@ -1,0 +1,28 @@
+{
+  "steps": [
+    {
+      "action": "goto",
+      "value": "http://127.0.0.1:8080/"
+    },
+    {
+      "action": "wait_for_selector",
+      "target": "#signup-form"
+    },
+    {
+      "action": "expect_visible",
+      "target": "#email"
+    },
+    {
+      "action": "scroll",
+      "value": 400
+    },
+    {
+      "action": "evaluate",
+      "value": "() => document.querySelectorAll('input').length"
+    },
+    {
+      "action": "screenshot",
+      "value": "after-scan"
+    }
+  ]
+}

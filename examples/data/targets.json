@@ -1,0 +1,90 @@
+{
+  "rows": [
+    {
+      "name": "wizard-two-step",
+      "target_url": "http://127.0.0.1:8080/wizard",
+      "scenario": "form-submit",
+      "email": "wizard.user@example.com",
+      "password": "Wa!tW1zard",
+      "phone": "+90 555 000 11 22",
+      "submit": "false",
+      "steps": [
+        {
+          "action": "goto",
+          "value": "http://127.0.0.1:8080/wizard"
+        },
+        {
+          "action": "fill",
+          "target": "#wizard-email",
+          "value": "{email}"
+        },
+        {
+          "action": "click",
+          "target": "#wizard-continue"
+        },
+        {
+          "action": "wait_for_selector",
+          "target": "#wizard-password"
+        },
+        {
+          "action": "fill",
+          "target": "#wizard-password",
+          "value": "{password}"
+        },
+        {
+          "action": "fill",
+          "target": "#wizard-phone",
+          "value": "{phone}"
+        },
+        {
+          "action": "click",
+          "target": "button:has-text('Tamamla')"
+        },
+        {
+          "action": "wait_for_selector",
+          "target": ".notice.success"
+        },
+        {
+          "action": "screenshot",
+          "value": "wizard-done"
+        }
+      ]
+    },
+    {
+      "name": "load-test-home",
+      "target_url": "http://127.0.0.1:8080/",
+      "scenario": "load-test",
+      "submit": "false",
+      "tags": "load"
+    },
+    {
+      "name": "load-test-slow",
+      "target_url": "http://127.0.0.1:8080/slow?ms=1200",
+      "scenario": "load-test",
+      "submit": "false",
+      "tags": "load"
+    },
+    {
+      "name": "api-discovery",
+      "target_url": "http://127.0.0.1:8080/",
+      "scenario": "api-discovery",
+      "submit": "false",
+      "tags": "api"
+    },
+    {
+      "name": "smoke-dashboard",
+      "target_url": "http://127.0.0.1:8080/dashboard",
+      "scenario": "smoke",
+      "submit": "false",
+      "tags": "smoke"
+    },
+    {
+      "name": "captcha-detection",
+      "target_url": "http://127.0.0.1:8080/captcha",
+      "scenario": "smoke",
+      "submit": "false",
+      "expect_error": true,
+      "tags": "negative"
+    }
+  ]
+}

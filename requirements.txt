@@ -1,0 +1,15 @@
+# ---------------------------------------------------------------------------
+# WAFT runtime dependencies
+# ---------------------------------------------------------------------------
+playwright>=1.47          # browser automation engine (also: python -m playwright install --with-deps chromium)
+python-dotenv>=1.0        # .env loading (optional: a built-in parser is used as fallback)
+pandas>=2.0               # Excel data source (requirement #7)
+openpyxl>=3.1             # .xlsx engine for pandas
+xlrd>=2.0                 # legacy .xls support
+rich>=13.0                # pretty console logging/summary (optional but recommended)
+tenacity>=8.2             # battle-tested retry helper (used as an optional accelerator)
+playwright-stealth>=2.0   # anti-detection evasions (requirement #2)
+
+# ---------------------------------------------------------------------------
+# Development / test extras:  pip install -r requirements-dev.txt
+# ---------------------------------------------------------------------------

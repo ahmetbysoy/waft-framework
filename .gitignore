@@ -1,0 +1,38 @@
+# --- WAFT runtime -----------------------------------------------------------
+artifacts/
+*.har
+*.zip
+run.json
+results.csv
+contexts.csv
+junit.xml
+endpoints.json
+failures.json
+summary.md
+
+# --- secrets ---------------------------------------------------------------
+.env
+*.env
+!.env.example
+proxies.txt
+!proxies.example.txt
+
+# --- python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- OS / editors ----------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

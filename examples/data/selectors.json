@@ -1,0 +1,35 @@
+{
+  "selectors": {
+    "email": "#email",
+    "password": "#password",
+    "password_confirm": "#password_confirm",
+    "first_name": "#fname",
+    "last_name": "#lname",
+    "phone": "#phone",
+    "company": "#company",
+    "city": "#city",
+    "birthdate": "#birthdate",
+    "website": "#website",
+    "message": "#message",
+    "terms": "#terms",
+    "newsletter": "#newsletter"
+  },
+  "field_aliases": {
+    "email": [
+      "eposta",
+      "e_posta",
+      "mail",
+      "kullanici_email"
+    ],
+    "phone": [
+      "gsm",
+      "cep",
+      "telefon_no"
+    ],
+    "message": [
+      "mesaj",
+      "not",
+      "aciklama"
+    ]
+  }
+}
