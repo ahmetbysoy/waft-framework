@@ -1,0 +1,259 @@
+{
+  "source": "demo_tablo.xlsx",
+  "sheet": "🤖 Botlar",
+  "columns": {
+    "name": "Bot / Mini-App Adı",
+    "link": "t.me / Link",
+    "mechanism": "Kazanç Mekanizması",
+    "payout": "Ödeme Yöntemi",
+    "threshold": "Min. Çekim / Eşik",
+    "earnings": "Tahmini Kazanç",
+    "risk": "Risk",
+    "note": "Güven Notu / Uyarı"
+  },
+  "scanned": 6,
+  "results": [
+    {
+      "row": 1,
+      "name": "PaketKazan",
+      "link": "t.me/ornek-paket",
+      "risk_score": 90,
+      "label": "DOKUNMA",
+      "fields": {
+        "name": "PaketKazan",
+        "link": "t.me/ornek-paket",
+        "mechanism": "Kazanma paketi al, günde %30 getiri",
+        "payout": "USDT",
+        "threshold": "50 USDT",
+        "earnings": "%30 günlük",
+        "risk": "Çok Yüksek",
+        "note": "Önce yatırım yapman gerekiyor; VIP paket şartı var"
+      },
+      "findings": [
+        {
+          "rule": "advance_fee",
+          "label": "Ön ödeme / aktivasyon / paket-VIP kapısı",
+          "weight": 40,
+          "field": "note",
+          "evidence": "Önce yatırım",
+          "reason": "Kazanca erişmek için önce sizden para isteniyor (aktivasyon ücreti, paket, VIP, bakiye yükleme). Gerçek görev/anket platformları sizden ücret almaz — ödemeyi onlar size yapar. Bu, 'ön ödeme tuzağı'nın (advance-fee fraud) anahtarıdır.",
+          "advice": "DOKUNMA. Ödenen para geri alınamaz; sonrasında görünen 'kazanç' yalnızca ekran rakamıdır ve çekim aşamasında yeni şartlarla engellenir.",
+          "fatal": true
+        },
+        {
+          "rule": "unrealistic_returns",
+          "label": "Gerçek dışı / garantili getiri vaadi",
+          "weight": 25,
+          "field": "mechanism",
+          "evidence": "günde %",
+          "reason": "Yüksek ve 'garantili' getiri piyasada yoktur; vaadin büyüklüğü tek başına dolandırıcılık göstergesidir. Gerçek platformlarda kazanç değişkendir ve emek/veri karşılığıdır.",
+          "advice": "Bağımsız, doğrulanabilir ödeme kanıtı olmadan bu tür vaatleri ciddiye almayın.",
+          "fatal": false
+        },
+        {
+          "rule": "moving_threshold",
+          "label": "Hareketli çekim eşiği / davet şartı baskısı",
+          "weight": 15,
+          "field": "note",
+          "evidence": "şart",
+          "reason": "Çekim, davet/aktivite/şart tamamlamaya bağlanmış. Bu kurgunun amacı eşiğe hiç ulaştırmamaktır: eşiğe yaklaştıkça yeni bir şart eklenir ('hareketli çekim eşiği').",
+          "advice": "Şartları yazılı olarak isteyin ve sabit mi diye bakın. Değişiyorsa veya davet gerektiriyorsa çıkın.",
+          "fatal": false
+        },
+        {
+          "rule": "irreversible_payout",
+          "label": "Yalnızca kripto ile geri döndürülemez ödeme kanalı",
+          "weight": 10,
+          "field": "payout",
+          "evidence": "USDT",
+          "reason": "Ödeme yalnızca kripto ise işlem geri alınamaz ve muhatap genellikle tüzel kişilik değildir; şikâyet edilecek bir merci bulunmaz.",
+          "advice": "Kripto tek başına suç kanıtı değildir; ama şirket bilgisi yoksa riski büyütür.",
+          "fatal": false
+        }
+      ]
+    },
+    {
+      "row": 2,
+      "name": "VipKulup",
+      "link": "t.me/ornek-vip",
+      "risk_score": 90,
+      "label": "DOKUNMA",
+      "fields": {
+        "name": "VipKulup",
+        "link": "t.me/ornek-vip",
+        "mechanism": "VIP üyelik ile sınırsız kazanç",
+        "payout": "USDT",
+        "threshold": "100 USDT",
+        "earnings": "garanti kazanç",
+        "risk": "Yüksek",
+        "note": "Aktivasyon için bakiye yükle, sonra çekim açılır"
+      },
+      "findings": [
+        {
+          "rule": "advance_fee",
+          "label": "Ön ödeme / aktivasyon / paket-VIP kapısı",
+          "weight": 40,
+          "field": "note",
+          "evidence": "Aktivasyon",
+          "reason": "Kazanca erişmek için önce sizden para isteniyor (aktivasyon ücreti, paket, VIP, bakiye yükleme). Gerçek görev/anket platformları sizden ücret almaz — ödemeyi onlar size yapar. Bu, 'ön ödeme tuzağı'nın (advance-fee fraud) anahtarıdır.",
+          "advice": "DOKUNMA. Ödenen para geri alınamaz; sonrasında görünen 'kazanç' yalnızca ekran rakamıdır ve çekim aşamasında yeni şartlarla engellenir.",
+          "fatal": true
+        },
+        {
+          "rule": "unrealistic_returns",
+          "label": "Gerçek dışı / garantili getiri vaadi",
+          "weight": 25,
+          "field": "mechanism",
+          "evidence": "sınırsız kazan",
+          "reason": "Yüksek ve 'garantili' getiri piyasada yoktur; vaadin büyüklüğü tek başına dolandırıcılık göstergesidir. Gerçek platformlarda kazanç değişkendir ve emek/veri karşılığıdır.",
+          "advice": "Bağımsız, doğrulanabilir ödeme kanıtı olmadan bu tür vaatleri ciddiye almayın.",
+          "fatal": false
+        },
+        {
+          "rule": "moving_threshold",
+          "label": "Hareketli çekim eşiği / davet şartı baskısı",
+          "weight": 15,
+          "field": "threshold",
+          "evidence": "100 USD",
+          "reason": "Çekim, davet/aktivite/şart tamamlamaya bağlanmış. Bu kurgunun amacı eşiğe hiç ulaştırmamaktır: eşiğe yaklaştıkça yeni bir şart eklenir ('hareketli çekim eşiği').",
+          "advice": "Şartları yazılı olarak isteyin ve sabit mi diye bakın. Değişiyorsa veya davet gerektiriyorsa çıkın.",
+          "fatal": false
+        },
+        {
+          "rule": "irreversible_payout",
+          "label": "Yalnızca kripto ile geri döndürülemez ödeme kanalı",
+          "weight": 10,
+          "field": "payout",
+          "evidence": "USDT",
+          "reason": "Ödeme yalnızca kripto ise işlem geri alınamaz ve muhatap genellikle tüzel kişilik değildir; şikâyet edilecek bir merci bulunmaz.",
+          "advice": "Kripto tek başına suç kanıtı değildir; ama şirket bilgisi yoksa riski büyütür.",
+          "fatal": false
+        }
+      ]
+    },
+    {
+      "row": 3,
+      "name": "TakimKur",
+      "link": "t.me/ornek-takim",
+      "risk_score": 35,
+      "label": "TEMKİNLİ OL",
+      "fields": {
+        "name": "TakimKur",
+        "link": "t.me/ornek-takim",
+        "mechanism": "Takım kur, seviye atla, referans topla",
+        "payout": "TRX",
+        "threshold": "100 TRX",
+        "earnings": "değişken",
+        "risk": "Yüksek",
+        "note": "Kazanç yalnızca davet edilen kişilerden geliyor"
+      },
+      "findings": [
+        {
+          "rule": "referral_pyramid",
+          "label": "Referans piramidi / ponzi şeması",
+          "weight": 25,
+          "field": "mechanism",
+          "evidence": "Takım kur",
+          "reason": "Gelir, ürün/hizmet satışından değil yeni katılımcı getirmekten geliyor. Ponzi şemalarının tanımı budur: ödemeler eski katılımcıya yeni katılımcının parasından yapılır ve sistem matematiksel olarak er ya da geç çöker.",
+          "advice": "Uzak dur. Getirdiğiniz kişiler de aynı kaybı yaşar; sosyal çevreniz zarar görür ve bazı durumlarda siz de sorumlu tutulursunuz.",
+          "fatal": false
+        },
+        {
+          "rule": "irreversible_payout",
+          "label": "Yalnızca kripto ile geri döndürülemez ödeme kanalı",
+          "weight": 10,
+          "field": "payout",
+          "evidence": "TRX",
+          "reason": "Ödeme yalnızca kripto ise işlem geri alınamaz ve muhatap genellikle tüzel kişilik değildir; şikâyet edilecek bir merci bulunmaz.",
+          "advice": "Kripto tek başına suç kanıtı değildir; ama şirket bilgisi yoksa riski büyütür.",
+          "fatal": false
+        }
+      ]
+    },
+    {
+      "row": 4,
+      "name": "AnketOdak",
+      "link": "t.me/ornek-anket",
+      "risk_score": 0,
+      "label": "DÜŞÜK RİSK",
+      "fields": {
+        "name": "AnketOdak",
+        "link": "t.me/ornek-anket",
+        "mechanism": "Anket doldurma; reklam veren müşteriler ödüyor",
+        "payout": "PayPal",
+        "threshold": "5 USD",
+        "earnings": "aylık 20-40 USD",
+        "risk": "Orta",
+        "note": "Ödeme kanıtı kullanıcı raporlarında paylaşılmış"
+      },
+      "findings": []
+    },
+    {
+      "row": 5,
+      "name": "PTCİzle",
+      "link": "t.me/ornek-ptc",
+      "risk_score": 0,
+      "label": "DÜŞÜK RİSK",
+      "fields": {
+        "name": "PTCİzle",
+        "link": "t.me/ornek-ptc",
+        "mechanism": "Reklam izleme (PTC), günlük küçük ödemeler",
+        "payout": "PayPal",
+        "threshold": "2 USD",
+        "earnings": "günde 0.5-1 USD",
+        "risk": "Orta",
+        "note": "Kurumsal bilgi var, ödeme geçmişi uzun"
+      },
+      "findings": []
+    },
+    {
+      "row": 6,
+      "name": "SessizBot",
+      "link": "t.me/ornek-sessiz",
+      "risk_score": 35,
+      "label": "TEMKİNLİ OL",
+      "fields": {
+        "name": "SessizBot",
+        "link": "t.me/ornek-sessiz",
+        "mechanism": "nan",
+        "payout": "kripto",
+        "threshold": "nan",
+        "earnings": "nan",
+        "risk": "Belirsiz",
+        "note": "hiçbir şey yapmadan otomatik kazanç; admin dm ile iletişim"
+      },
+      "findings": [
+        {
+          "rule": "irreversible_payout",
+          "label": "Yalnızca kripto ile geri döndürülemez ödeme kanalı",
+          "weight": 10,
+          "field": "payout",
+          "evidence": "kripto",
+          "reason": "Ödeme yalnızca kripto ise işlem geri alınamaz ve muhatap genellikle tüzel kişilik değildir; şikâyet edilecek bir merci bulunmaz.",
+          "advice": "Kripto tek başına suç kanıtı değildir; ama şirket bilgisi yoksa riski büyütür.",
+          "fatal": false
+        },
+        {
+          "rule": "no_corporate_trace",
+          "label": "Kurumsal iz yokluğu / anonimlik",
+          "weight": 15,
+          "field": "note",
+          "evidence": "admin dm",
+          "reason": "Muhatabın tüzel kişiliği, adresi veya resmî iletişimi yok. Sorun çıktığında hesap veren bir taraf bulunmaz.",
+          "advice": "Doğrulama listesi: şirket unvanı/sicil, resmî site ve alan adı yaşı, destek kanalı, kullanım şartları, KVKK/gizlilik metni. Yoksa listeye almayın.",
+          "fatal": false
+        },
+        {
+          "rule": "no_transparency",
+          "label": "Şeffaflık eksikliği (belirsiz mekanizma)",
+          "weight": 10,
+          "field": "note",
+          "evidence": "otomatik kazan",
+          "reason": "Kazanç mekanizması açıklanmıyor: ne yapıldığı belli değilse, gelirin kaynağı da yoktur. 'Kim, neden, ne için ödüyor?' sorusu cevapsız kalır.",
+          "advice": "Mekanizma net değilse (hangi görev, kim ödüyor, neden ödüyor) katılmayın.",
+          "fatal": false
+        }
+      ]
+    }
+  ]
+}

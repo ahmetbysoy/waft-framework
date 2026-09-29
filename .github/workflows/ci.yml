@@ -56,10 +56,13 @@ jobs:
           python -m pip install -r requirements.txt ruff pytest
 
       - name: ruff (F, E9)
-        run: ruff check waft/ qa-kit/ examples/ tests/ --select F,E9 --ignore E501
+        run: ruff check waft/ qa-kit/ examples/ tests/ kazanc-botu-risk-taramasi/ --select F,E9 --ignore E501
 
       - name: pytest — tarayıcısız katman
         run: python -m pytest -q -m "not integration"
+
+      - name: Risk tarayıcısı testleri (çevrimdışı, ağsız)
+        run: python -m pytest -q kazanc-botu-risk-taramasi/
 
       - name: Hedef sayfası doğrulaması (kapsam + bilinen tuzaklar)
         run: python qa-kit/offerwall/validate_targets.py --targets qa-kit/offerwall/targets_offerwall.xlsx
