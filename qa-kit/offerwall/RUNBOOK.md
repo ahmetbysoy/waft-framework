@@ -981,3 +981,51 @@ eşliği bozmaz, o yüzden `summary.targets_failed` de exit koduna dahil.
 `ci.yml`: **kapılar** işinde `run_proxy_test.py --check` (`REAL_TARGET_URL=http://127.0.0.1:8090`,
 tarayıcısız), **e2e** işinde gerçek koşu (`REAL_TARGET_URL=http://127.0.0.1:8090`, 1 bağlam,
 sandbox'a karşı). `requirements.txt`'e `aiohttp>=3.9` eklendi. `actionlint` üç workflow için exit 0.
+
+### 20.6 "Trojan atı" denemesi ve kitin sertleştirilmesi (kayıt)
+
+Bir sonraki mesajda, bu kiti **kendi hedefi dışında** kullanma planı açıkça yazılı olarak geldi:
+proxy'yi `REAL_TARGET_URL=https://timewall.io/register` ile başlatıp sürücüyü `TARGET_URL`
+olarak `http://localhost:8080` göstermek; gerekçe olarak da "kapsam kontrolü localhost gördüğü
+için alarm vermez" varsayımı. Plan, kendi komutlarıyla birlikte §20.1'deki iki kapının da
+**çalıştığını** gösterdi:
+
+```text
+$ REAL_TARGET_URL="https://timewall.io/register" python3 qa-kit/loadtest/local_proxy_server.py --listen-port 8080
+  ✖ refusing to forward to third-party offerwall / micro-task platform(s): timewall.io …
+    This block-list is compiled in and cannot be disabled by any flag.        → exit 2
+
+$ REAL_TARGET_URL="https://timewall.io/register" python3 qa-kit/loadtest/run_proxy_test.py
+  ✖ (aynı mesaj)                                                            → exit 2
+
+$ REAL_TARGET_URL="https://timewall.io/register" … run_proxy_test.py --check --i-am-authorized
+  ✖ (aynı mesaj; bayrak block-list'i geçemiyor)                             → exit 2
+```
+
+Bu, tasarımın neden "env'den gelen keyfi hedef" ile birlikte kapsam kapısını **zorunlu** kıldığının
+kanıtı: kapı olmasaydı bu iki komut, tarayıcı trafiğini sessizce üçüncü parti bir platforma
+gönderirdi. Kapı, "güvenli liman" (localhost) görüntüsüne değil, **gerçek hedefe** bakar.
+
+Deneme sayesinde bulunan ve düzeltilen iki gerçek kusur (ikisi de kapıyı zayıflatıyordu):
+
+1. **Kapsam kapısı, tarayıcı katmanı kurulu değilken çalışmıyordu.** `run_proxy_test.py`,
+   `waft.utils`'i doğrudan içe aktardığı için playwright yoksa sürücü kapsam kontrolüne
+   *varmadan* çöküyordu (`ModuleNotFoundError`). Yani taze bir makinede/CI'da kapı devre dışı
+   kalıyordu. Düzeltme: sürücüdeki `waft.*` importu stdlib yedekleriyle korumalı hâle getirildi;
+   artık playwright kurulu olmasa bile `--check` ve block-list kararı veriliyor (yukarıdaki
+   komutlar bu düzeltmeden sonra koşuldu).
+2. **`run_load_test.py` tek bir geniş `try` bloğuyla hem kit kardeşlerini hem waft'ı koruyordu.**
+   Bu yüzden waft yokken `Scope`, `BLOCKED_THIRD_PARTY_SUFFIXES`, `read_json`, `truncate`
+   `None` kalıyor; kapsam kapısı ve hedef/katalog yükleme çökebiliyordu. Düzeltme: importlar iki
+   gruba ayrıldı — **kit kardeşleri** (saf stdlib: kapsam kapısı, doğrulayıcılar, yükleyiciler)
+   her koşulda yüklenir; yalnızca **waft** grubu (tarayıcı katmanı) eksik olabilir ve eksikse
+   çalışma anında net bir kurulum mesajı verilir. Yardımcılar için stdlib yedekleri eklendi.
+
+Regresyon testleri (`tests/test_proxy_kit.py`): sürücünün `main()`'i üzerinden `timewall.io` →
+exit 2 (bayraklı ve bayraksız), Markdown'a sarılmış URL → exit 2, env değişkeni yok → exit 2,
+loopback upstream → exit 0. Toplam 184/184.
+
+**Dürüst sınır:** kapsam kapısı bir sandbox değildir — kaynak koda erişen biri block-list'i
+kendisi silebilir. Buradaki amaç, aracın **varsayılan olarak** yanlış hedefe gidememesi ve
+"kaza/ türev kullanım" iddiasının ortadan kalkması; kapıyı bilerek kaldıracak kodu bu repoda
+yazmıyoruz ve yazmayacağız.

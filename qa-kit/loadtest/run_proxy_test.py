@@ -78,7 +78,53 @@ for _path in (str(_REPO), str(_HERE), str(_KIT), str(_OFFERWALL)):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-from waft.utils import ensure_dir, human_ms, new_run_id, now_iso, truncate, write_json  # noqa: E402
+#: ``waft.*`` is imported defensively on purpose: the scope gate must still refuse an off-scope
+#: upstream on a machine where the browser layer's dependencies are not installed yet (fresh CI
+#: runner, new laptop). A missing playwright must never turn "refused" into a traceback.
+_WAFT_IMPORT_ERROR: Optional[str] = None
+try:  # pragma: no cover - environment dependent
+    from waft.utils import ensure_dir, human_ms, new_run_id, now_iso, truncate, write_json, write_jsonl
+except ModuleNotFoundError as _exc:  # pragma: no cover - environment dependent
+    _WAFT_IMPORT_ERROR = str(_exc)
+    import datetime as _dt
+    import json as _json
+    import uuid as _uuid
+
+    def ensure_dir(path: Any) -> Path:
+        target = Path(path)
+        target.mkdir(parents=True, exist_ok=True)
+        return target
+
+    def human_ms(value: Any) -> str:
+        try:
+            number = float(value or 0)
+        except (TypeError, ValueError):
+            return "0 ms"
+        return f"{number:.0f} ms" if number < 1000 else f"{number / 1000:.2f} s"
+
+    def new_run_id(prefix: str = "run") -> str:
+        return f"{prefix}-{_dt.datetime.now().strftime('%Y%m%d-%H%M%S')}-{_uuid.uuid4().hex[:6]}"
+
+    def now_iso() -> str:
+        return _dt.datetime.now().astimezone().isoformat(timespec="seconds")
+
+    def truncate(value: Any, limit: int = 200, suffix: str = "…") -> str:
+        text = "" if value is None else str(value)
+        return text if len(text) <= limit else text[: max(0, limit - len(suffix))] + suffix
+
+    def write_json(path: Any, payload: Any, *, indent: int = 2) -> Path:
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(_json.dumps(payload, indent=indent, ensure_ascii=False) + "\n", encoding="utf-8")
+        return target
+
+    def write_jsonl(path: Any, records: Any, *, append: bool = False) -> Path:
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("a" if append else "w", encoding="utf-8") as handle:
+            for record in records:
+                handle.write(_json.dumps(record, ensure_ascii=False) + "\n")
+        return target
 
 logger = logging.getLogger("waft.proxy.test")
 
@@ -969,8 +1015,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         results_path = runner.write_results()
         if runner.steps:
-            from waft.utils import write_jsonl
-
             write_jsonl(run_dir / "steps.jsonl", runner.steps)
     except Exception as exc:  # noqa: BLE001 - artefacts must not mask the exit code
         logger.error("artefakt yazılamadı: %s", exc)

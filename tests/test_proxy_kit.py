@@ -197,3 +197,32 @@ def test_run_proxy_test_cli_defaults_point_at_the_kit(proxy: Any) -> None:
 
     with pytest.raises(Exception, match="loopback"):
         module.resolve_proxy_endpoint(module.build_parser().parse_args(["--proxy-url", "https://example.com/"]))
+
+@pytest.fixture(scope="module")
+def driver() -> Any:
+    """The QA driver, imported once (mirrors how the CLI imports it)."""
+    spec = importlib.util.spec_from_file_location("proxy_driver_gate_test", LOADTEST_DIR / "run_proxy_test.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["proxy_driver_gate_test"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_driver_main_refuses_third_party_upstream(driver: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The exact commands from the "point it at timewall" plan must exit 2, flag or no flag."""
+    monkeypatch.setenv("REAL_TARGET_URL", "https://timewall.io/register")
+    assert driver.main(["--check", "--artifacts", str(tmp_path)]) == 2
+    assert driver.main(["--check", "--i-am-authorized", "--artifacts", str(tmp_path)]) == 2
+
+
+def test_driver_main_rejects_markdown_wrapped_url(driver: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("REAL_TARGET_URL", "[https://timewall.io](https://timewall.io)")
+    assert driver.main(["--check", "--artifacts", str(tmp_path)]) == 2
+    monkeypatch.delenv("REAL_TARGET_URL", raising=False)
+    assert driver.main(["--check", "--artifacts", str(tmp_path)]) == 2  # missing env var
+
+
+def test_driver_main_accepts_loopback_upstream(driver: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("REAL_TARGET_URL", "http://127.0.0.1:8090")
+    assert driver.main(["--check", "--artifacts", str(tmp_path), "--targets", str(LOADTEST_DIR / "test_targets.sandbox.json")]) == 0

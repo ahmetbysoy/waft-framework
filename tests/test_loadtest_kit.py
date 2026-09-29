@@ -301,6 +301,10 @@ def test_cli_defaults_point_at_the_kit_files(lt: Any) -> None:
     assert sandbox.targets.name == "test_targets.sandbox.json"
     assert sandbox.imap_ssl == "off"
 
+@pytest.mark.skipif(
+    _load_runner().Config is None,
+    reason="waft yüklü değil (tarayıcı katmanı): LoadTestRunner Config gerektirir",
+)
 def test_context_count_never_exceeds_accounts_or_the_flag(lt: Any) -> None:
     """`--contexts 2` must really mean two contexts (regression: it was silently ignored)."""
     from argparse import Namespace

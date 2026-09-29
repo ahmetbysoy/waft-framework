@@ -80,36 +80,17 @@ for _path in (str(_REPO), str(_HERE), str(_KIT), str(_OFFERWALL)):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-#: WAFT + kit siblings are imported defensively. ``waft/__init__`` pulls the browser layer in,
-#: so a missing dependency would otherwise surface as a 40-line traceback instead of the one-line
-#: install hint in :func:`main`.
+#: Two *independent* import groups, because they fail for different reasons:
+#:
+#: * the **kit siblings** (``account_pool``, ``run_regression``) are pure stdlib - the scope gate,
+#:   the e-mail/password validators and the selector/target loaders must keep working on a machine
+#:   where the browser layer is not installed yet (fresh CI runner, new laptop). "Refused" must
+#:   never degrade into a traceback.
+#: * the **waft** package pulls the Playwright driver in through ``waft/__init__``, so only this
+#:   group is allowed to be missing - and only until the run actually needs a browser.
+_KIT_IMPORT_ERROR: Optional[str] = None
 _WAFT_IMPORT_ERROR: Optional[str] = None
-EMAIL_RE: Any = None
-HOST_RE: Any = None
-PASTE_ARTIFACT_MARKERS: tuple[str, ...] = ()
-looks_like_placeholder: Any = None
-BLOCKED_THIRD_PARTY_SUFFIXES: tuple[str, ...] = ()
-SCOPE_HELP: str = ""
-Scope: Any = None
-host_of: Any = None
-Config: Any = None
-resolve_device_profiles: Any = None
 CAPTCHA_SELECTORS: tuple[str, ...] = ()
-ImapClient: Any = None
-ImapSettings: Any = None
-setup_logging: Any = None
-ContextProfile: Any = None
-build_init_script: Any = None
-ensure_dir: Any = None
-human_ms: Any = None
-mask_secret: Any = None
-new_context_id: Any = None
-new_run_id: Any = None
-now_iso: Any = None
-read_json: Any = None
-truncate: Any = None
-write_json: Any = None
-write_jsonl: Any = None
 
 try:  # pragma: no cover - environment dependent
     from account_pool import (  # noqa: E402  (qa-kit/offerwall sibling - validators reused)
@@ -124,6 +105,48 @@ try:  # pragma: no cover - environment dependent
         Scope,
         host_of,
     )
+except ModuleNotFoundError as exc:  # pragma: no cover - environment dependent
+    _KIT_IMPORT_ERROR = str(exc)
+    EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    HOST_RE = re.compile(r"^[A-Za-z0-9.-]+$|^\d{1,3}(\.\d{1,3}){3}$")
+    PASTE_ARTIFACT_MARKERS = ("`", "<", ">")
+    BLOCKED_THIRD_PARTY_SUFFIXES = ()
+
+    def looks_like_placeholder(password: str) -> bool:
+        return not (password or "").strip()
+
+    class Scope:  # minimal stand-in: allow nothing unless a pattern matches
+        def __init__(self, patterns: tuple[str, ...] = ()) -> None:
+            self.patterns = patterns
+
+        def allows(self, host: str) -> bool:
+            host = (host or "").lower()
+            return any(
+                host == pattern or (pattern.startswith("*.") and host.endswith(pattern[1:]))
+                for pattern in self.patterns
+            )
+
+        @classmethod
+        def load(cls, path: Any, extra: Sequence[str]) -> "Scope":
+            patterns = [item.strip().lower() for item in extra if item.strip()]
+            if path and Path(path).exists():
+                for line in Path(path).read_text(encoding="utf-8").splitlines():
+                    cleaned = line.split("#", 1)[0].strip().lower()
+                    if cleaned:
+                        patterns.append(cleaned)
+            return cls(tuple(dict.fromkeys(patterns)))
+
+    def host_of(url: str) -> str:
+        try:
+            from urllib.parse import urlsplit as _urlsplit
+
+            return (_urlsplit(url).netloc or "").lower()
+        except Exception:  # noqa: BLE001
+            return ""
+
+    SCOPE_HELP = "add the host to qa-kit/authorized_hosts.txt (or pass --i-am-authorized)."
+
+try:  # pragma: no cover - environment dependent
     from waft.config import Config, resolve_device_profiles  # noqa: E402
     from waft.forms import CAPTCHA_SELECTORS  # noqa: E402
     from waft.imap_client import ImapClient, ImapSettings  # noqa: E402
@@ -144,6 +167,69 @@ try:  # pragma: no cover - environment dependent
     )
 except ModuleNotFoundError as exc:  # pragma: no cover - environment dependent
     _WAFT_IMPORT_ERROR = str(exc)
+    import datetime as _dt
+    import json as _json
+    import uuid as _uuid
+
+    Config = None  # type: ignore[assignment]
+    resolve_device_profiles = None  # type: ignore[assignment]
+    ImapClient = None  # type: ignore[assignment]
+    ImapSettings = None  # type: ignore[assignment]
+    setup_logging = None  # type: ignore[assignment]
+    ContextProfile = None  # type: ignore[assignment]
+    build_init_script = None  # type: ignore[assignment]
+
+    def ensure_dir(path: Any) -> Path:
+        target = Path(path)
+        target.mkdir(parents=True, exist_ok=True)
+        return target
+
+    def human_ms(value: Any) -> str:
+        try:
+            number = float(value or 0)
+        except (TypeError, ValueError):
+            return "0 ms"
+        return f"{number:.0f} ms" if number < 1000 else f"{number / 1000:.2f} s"
+
+    def mask_secret(value: Any, *, keep: int = 3, mask: str = "***") -> str:
+        text = "" if value is None else str(value)
+        if not text:
+            return ""
+        head = text[:keep] if len(text) > 6 else ""
+        return f"{head}{mask}({len(text)} chars)"
+
+    def new_run_id(prefix: str = "run") -> str:
+        return f"{prefix}-{_dt.datetime.now().strftime('%Y%m%d-%H%M%S')}-{_uuid.uuid4().hex[:6]}"
+
+    def new_context_id(index: int, prefix: str = "ctx") -> str:
+        return f"{prefix}-{index:02d}-{_uuid.uuid4().hex[:4]}"
+
+    def now_iso() -> str:
+        return _dt.datetime.now().astimezone().isoformat(timespec="seconds")
+
+    def truncate(value: Any, limit: int = 200, suffix: str = "…") -> str:
+        text = "" if value is None else str(value)
+        return text if len(text) <= limit else text[: max(0, limit - len(suffix))] + suffix
+
+    def read_json(path: Any, *, default: Any = None) -> Any:
+        try:
+            return _json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return default
+
+    def write_json(path: Any, payload: Any, *, indent: int = 2) -> Path:
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(_json.dumps(payload, indent=indent, ensure_ascii=False) + "\n", encoding="utf-8")
+        return target
+
+    def write_jsonl(path: Any, records: Any, *, append: bool = False) -> Path:
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("a" if append else "w", encoding="utf-8") as handle:
+            for record in records:
+                handle.write(_json.dumps(record, ensure_ascii=False) + "\n")
+        return target
 
 logger = logging.getLogger("waft.loadtest")
 
@@ -1861,7 +1947,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = apply_sandbox_defaults(build_parser().parse_args(argv))
     logging.basicConfig(level=logging.INFO, format="%(levelname)-7s | %(message)s")
 
-    missing = _PLAYWRIGHT_IMPORT_ERROR or _WAFT_IMPORT_ERROR
+    missing = _PLAYWRIGHT_IMPORT_ERROR or _KIT_IMPORT_ERROR or _WAFT_IMPORT_ERROR
     if missing is not None:
         print(
             "✖ Bağımlılık eksik: " + missing + "\n"
