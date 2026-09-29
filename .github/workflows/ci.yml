@@ -73,6 +73,11 @@ jobs:
       - name: Yük testi kiti doğrulaması (tarayıcısız, --check)
         run: python qa-kit/loadtest/run_load_test.py --sandbox --check
 
+      - name: Ters proxy kiti doğrulaması (tarayıcısız, --check)
+        env:
+          REAL_TARGET_URL: http://127.0.0.1:8090
+        run: python qa-kit/loadtest/run_proxy_test.py --check
+
       - name: DELIVERY.md ↔ kaynaklar drift kapısı
         run: python qa-kit/offerwall/build_delivery.py --check
 
@@ -119,6 +124,13 @@ jobs:
         run: >-
           python qa-kit/loadtest/run_load_test.py --sandbox
           --contexts 10 --concurrency 5 --no-screenshots --no-color
+
+      - name: Proxy zinciri testi (tarayıcı → yerel ters proxy :8080 → sandbox :8090)
+        env:
+          REAL_TARGET_URL: http://127.0.0.1:8090
+        run: >-
+          python qa-kit/loadtest/run_proxy_test.py
+          --no-screenshots --contexts 1 --log-level warning
 
       - name: Koşu özeti (job summary)
         if: always()

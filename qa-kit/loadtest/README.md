@@ -110,4 +110,37 @@ Ayrıntılı kanıt ve olumsuz yol testleri: `qa-kit/offerwall/RUNBOOK.md` §19.
 
 ```bash
 python3 -m pytest tests/test_loadtest_kit.py -q     # 20 birim testi (tarayıcı açmaz)
+```---
+
+# Ters proxy kiti — `local_proxy_server.py` + `run_proxy_test.py`
+
+WAF'ınızın **proxy arkasından gelen** istekleri nasıl karşıladığını ölçer: tarayıcı yalnızca
+`http://127.0.0.1:8080` (yerel ters proxy) ile konuşur; proxy tüm trafiği `REAL_TARGET_URL`'e
+iletir; iki tarafın logu çapraz doğrulanır.
+
+```bash
+export REAL_TARGET_URL=http://127.0.0.1:8090          # kendi staging'iniz de olabilir (kapsam dosyası!)
+python3 qa-kit/loadtest/run_proxy_test.py             # proxy'yi kendisi başlatır
+python3 qa-kit/loadtest/run_proxy_test.py --check     # tarayıcısız doğrulama
 ```
+
+| Bayrak | Etki |
+|---|---|
+| `--xff-client 203.0.113.7` | Proxy'nin gönderdiği `X-Forwarded-For`'u sabitler → "WAF bu header'a güveniyor mu?" testi |
+| `--no-spawn` | Proxy zaten çalışıyorsa onu kullan |
+| `--proxy-url` / `--listen-port` | Proxy adresi (yalnızca loopback kabul edilir) |
+| `--no-rewrite-location` | Upstream `Location` başlığını olduğu gibi geçir |
+| `--strip-cookie-domain` | `Set-Cookie` içindeki `Domain=`'i kaldır (cookie'ler proxy host'unda kalsın) |
+| `--account-email/--account-password/--identity-domain` | `{email}`/`{password}` yer tutucularının çözümü (varsayılan: context başına üretilen kimlik) |
+
+**Sınırlar (kod seviyesinde):** üçüncü parti offerwall/mikro-görev platformları derleme içi
+block-list ile **her koşulda** reddedilir (bayrakla kapatılamaz); listede olmayan host yalnızca
+`--i-am-authorized` ile; proxy varsayılan olarak **127.0.0.1**'e bağlanır; stealth/parmak izi
+gizleme **yok** (ölçülen şey proxy başlıklarıdır); CAPTCHA tespit edilirse `CAPTCHA_DETECTED`
+loglanır ve atlanır.
+
+**Çıktılar:** `artifacts/proxy/<run_id>/proxy_test_results.json` (ağ + çapraz kontroller +
+kimlikler), `proxy/proxy_requests.jsonl` (her iletim: method, path, status, süre, gönderilen
+`X-Forwarded-*`), `steps.jsonl`, `screenshots/`.
+
+Ayrıntılı doğrulama kanıtları, olumsuz yollar ve tasarım gerekçeleri: `qa-kit/offerwall/RUNBOOK.md` §20.

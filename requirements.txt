@@ -2,6 +2,7 @@
 # WAFT runtime dependencies
 # ---------------------------------------------------------------------------
 playwright>=1.47          # browser automation engine (also: python -m playwright install --with-deps chromium)
+aiohttp>=3.9              # qa-kit/loadtest/local_proxy_server.py (local reverse proxy for WAF chain tests)
 python-dotenv>=1.0        # .env loading (optional: a built-in parser is used as fallback)
 pandas>=2.0               # Excel data source (requirement #7)
 openpyxl>=3.1             # .xlsx engine for pandas

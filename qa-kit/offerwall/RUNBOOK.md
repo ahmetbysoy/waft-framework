@@ -870,3 +870,114 @@ skip politikası 0 bırakır). Bu, "CAPTCHA'yı hata say" tercihini CI'da kırm�
 (tarayıcısız, artefakt/kapsam doğrulaması) ve **e2e** işinde `sandbox_up.sh --keep` sonrası
 `run_load_test.py --sandbox --contexts 10 --concurrency 5` (gerçek 10 bağlam). Yani seçici
 kataloğu veya hedef şeması bozulursa PR kırmızı olur. `actionlint` üç workflow için exit 0.
+
+## 20. Yerel ters proxy kiti (`local_proxy_server.py` + `run_proxy_test.py`) — sınırlarıyla birlikte
+
+İstenen şey: WAF'ın "proxy arkasından gelen istekleri" nasıl karşıladığını ölçmek için yerel bir
+ters proxy + onu süren bir QA sürücüsü. Bu istek, **keyfi bir hedefe yönlendirme** (env'den gelen
+`REAL_TARGET_URL`) içerdiği için mimari olarak riskli: "tarayıcıyı localhost'a çevir, trafiği
+başka yere gönder" kalıbı, bu depodaki kapsam kapısını atlatmanın en bilinen yoludur. Bu yüzden
+teslim edilen araç, kapsam kuralını **süreç içinde** uygular ve şu iki sertlikte çalışır:
+
+1. **Derleme içi üçüncü parti block-list'i** (`BLOCKED_THIRD_PARTY_SUFFIXES`): `timewall.io`,
+   `jumptask.io` gibi adresler `--i-am-authorized` verilse **bile** reddedilir. Hiçbir bayrak bunu
+   kapatamaz.
+2. **Kapsam dosyası** (`qa-kit/authorized_hosts.txt`): listede olmayan host, açık onay
+   (`--i-am-authorized`) olmadan reddedilir. Onay verilse bile uyarı loglanır.
+
+Her iki kontrol de **her iki süreçte** çalışır: proxy (`local_proxy_server.py`) ve sürücü
+(`run_proxy_test.py`) aynı `validate_upstream()` fonksiyonunu çağırır — yani sürücüyü kandırıp
+proxy'yi başlatmak da mümkün değildir.
+
+### 20.1 Ne yapar
+
+| Dosya | Rol |
+|---|---|
+| `local_proxy_server.py` | aiohttp tabanlı ters proxy; `127.0.0.1:8080` (varsayılan) dinler, TÜM metod/header/cookie/body'yi olduğu gibi `REAL_TARGET_URL`'e iletir; RFC 7230 hop-by-hop başlıklarını düşürür; `X-Forwarded-For`/`-Proto`/`-Host`, `X-Real-IP`, `Via` ekler; upstream `Location`'ı proxy origin'ine geri yazar; her iletimi `--log-jsonl`'e yazar; stdout'a tek bir `{"event": "listening", …}` hazırlık satırı basar |
+| `run_proxy_test.py` | Playwright sürücüsü; `REAL_TARGET_URL` yoksa durur (exit 2), proxy'yi arka planda başlatır, tarayıcıyı **yalnızca** `http://127.0.0.1:8080`'e yöneltir, form doldurur, `page.on("request"/"response")` ile dinler, iki logu çapraz doğrular ve `proxy_test_results.json` yazar |
+
+Bilinçli olarak **yapmadıkları**: parmak izi gizleme/stealth yok (WAF'ın gördüğü şey proxy
+başlıklarıdır, sahte tarayıcı kimliği değil), CAPTCHA çözme yok (tespit → `CAPTCHA_DETECTED` →
+güvenli atlama), üçüncü parti hedef yok (yukarıdaki iki kapı).
+
+### 20.2 Çapraz kontroller (sürücünün exit kodunu belirler)
+
+`proxy_test_results.json → checks`:
+
+| Kontrol | Anlamı |
+|---|---|
+| `browser_talked_only_to_proxy` | Tarayıcının gördüğü TÜM URL'ler proxy origin'iyle başlıyor |
+| `browser_never_contacted_upstream_directly` | Upstream host'una doğrudan giden tek bir istek yok |
+| `xff_present_on_every_forward` | İletilen her istekte `X-Forwarded-For` var |
+| `status_parity` | Her `(method, path)` için tarayıcı ↔ proxy durum kodları aynı |
+| `proxy_errors == 0` | Proxy tarafında 4xx/5xx üreten hata kaydı yok |
+
+### 20.3 Doğrulanmış sonuçlar (bu repoda, bu makinede)
+
+```text
+$ REAL_TARGET_URL=http://127.0.0.1:8090 python3 qa-kit/loadtest/run_proxy_test.py
+Tarayıcı → proxy      : http://127.0.0.1:8080
+Proxy → upstream      : http://127.0.0.1:8090
+Hedefler              : 2 (ok 1 | hata 0 | captcha 1)
+Tarayıcı isteği       : 5 | proxy'ye iletilen: 5
+Kontroller:
+  ✔ tarayıcı YALNIZCA proxy ile konuştu
+  ✔ upstream'e doğrudan gidilmedi
+  ✔ her iletilen istekte X-Forwarded-For var
+  ✔ durum kodları tarayıcı ↔ proxy tarafında aynı
+→ exit code: 0
+```
+
+İletim kanıtı (`proxy/proxy_requests.jsonl`), kayıt formunun POST'u dahil:
+
+```text
+  GET   /register                    200    2.83ms  req=0B    resp=3902B
+  GET   /api/v1/app-config           200    3.25ms  req=0B    resp=171B
+  POST  /register                    200   20.58ms  req=182B  resp=2082B   ← form gönderimi proxy'den geçti
+  GET   /captcha                     200    2.19ms
+  GET   /static/recaptcha-frame.html 200    3.83ms
+  forwarded: {Via: 1.1 waft-local-proxy, X-Forwarded-For: 127.0.0.1, X-Forwarded-Host: 127.0.0.1:8080,
+              X-Forwarded-Proto: http, X-Real-IP: 127.0.0.1}
+```
+
+**Başlıkların gerçekten upstream'e ulaştığının kanıtı** (geçici bir yansıtıcı hedefle, `--xff-client`
+kullanarak — "WAF bu XFF'e ne yapıyor?" senaryosunun ta kendisi):
+
+```text
+$ REAL_TARGET_URL=http://127.0.0.1:8095 local_proxy_server.py --listen-port 8081 --xff-client 203.0.113.7
+$ curl -s http://127.0.0.1:8081/register        # upstream'in GÖRDÜĞÜ header'lar:
+{ "Host": "127.0.0.1:8095", "X-Forwarded-For": "203.0.113.7", "X-Forwarded-Proto": "http",
+  "X-Forwarded-Host": "127.0.0.1:8081", "X-Real-IP": "127.0.0.1", "Via": "1.1 waft-local-proxy" }
+```
+
+Olumsuz yollar (hepsi exit 2, tarayıcı/proxy hiç açılmaz):
+
+```text
+$ env -u REAL_TARGET_URL python3 qa-kit/loadtest/run_proxy_test.py --check
+  ✖ REAL_TARGET_URL tanımlı değil. Bu betikte gömülü hiçbir adres yoktur …
+
+$ REAL_TARGET_URL=https://timewall.io python3 qa-kit/loadtest/run_proxy_test.py --check
+  ✖ refusing to forward to third-party offerwall / micro-task platform(s): timewall.io — …
+    This block-list is compiled in and cannot be disabled by any flag.
+```
+
+### 20.4 Bu turda kendi kodumda bulup düzelttiğim hata
+
+İlk koşuda form hedefi **düştü** ama dört çapraz kontrol de yeşildi — yani testlerin izlemediği
+bir yerden kaçıyordu. Log incelemesi: `field_filled field=email value='{email}'` — sürücü,
+`form_fields` içindeki `{email}` / `{password}` yer tutucularını **çözmeden** yazıyordu. Boş
+bırakılan `type="email" required` alanı HTML5 doğrulamasına takıldığı için tarayıcı formu hiç
+göndermedi; `POST /register` hiç oluşmadı ve "durum eşliği" kontrolü de karşılaştıracak bir kayıt
+bulamadığı için yeşil kaldı.
+
+Düzeltme: sürücüye context başına kimlik çözümü eklendi —
+`proxy-ctx00-<run_id>@demo.waft.local` + maskelenmiş parola; `{ctx}`/`{run}` de çözülüyor.
+Yeniden koşuda `POST /register 200` proxy logunda göründü ve hedef `ok` oldu. Ayrıca bu, "durum
+eşliği yeşilse doğrulama da yeşildir" varsayımının yanlış olduğunu gösterdi: eksik bir istek
+eşliği bozmaz, o yüzden `summary.targets_failed` de exit koduna dahil.
+
+### 20.5 CI'ya bağlandı
+
+`ci.yml`: **kapılar** işinde `run_proxy_test.py --check` (`REAL_TARGET_URL=http://127.0.0.1:8090`,
+tarayıcısız), **e2e** işinde gerçek koşu (`REAL_TARGET_URL=http://127.0.0.1:8090`, 1 bağlam,
+sandbox'a karşı). `requirements.txt`'e `aiohttp>=3.9` eklendi. `actionlint` üç workflow için exit 0.
